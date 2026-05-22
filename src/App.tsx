@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Wallet, CheckCircle, XCircle, AlertCircle, Shield, Search, 
-  Copy, Check, ExternalLink, Lock, Unlock, Settings, 
-  Download, Upload, Plus, Trash2, Users, CheckSquare, 
-  Globe, ArrowLeft, RefreshCw, Layers
+import {
+  Wallet, CheckCircle, XCircle, Shield, Search,
+  Copy, Check, ExternalLink, Lock, Settings,
+  Download, Upload, Trash2, ArrowLeft, Layers, RefreshCw
 } from 'lucide-react';
-import { MerkleTree, standardizeAddress, hashLeaf } from './merkle';
+import { MerkleTree, standardizeAddress } from './merkle';
 
 const API = 'http://localhost:3001/api';
 
@@ -19,148 +18,145 @@ interface Applicant {
   appliedAt: string;
 }
 
+// ─────────────────────────────────────────────────────────
+// Ticker strip
+// ─────────────────────────────────────────────────────────
+const TICKER_TEXT = 'FUGLYFAM  ×  ETH WHITELIST  ×  MINT INCOMING  ×  APPLY NOW  ×  FUGLYFAM  ×  ETH WHITELIST  ×  MINT INCOMING  ×  APPLY NOW  ×  ';
+
+function Ticker() {
+  return (
+    <div className="w-full overflow-hidden border-t border-b border-[#8B5CF6] py-2 bg-[#090909]">
+      <div
+        className="whitespace-nowrap text-[#8B5CF6] text-xs tracking-[0.2em] font-display"
+        style={{ animation: 'ticker 20s linear infinite', display: 'inline-block', width: 'max-content' }}
+      >
+        {TICKER_TEXT}{TICKER_TEXT}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// Status badge
+// ─────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: 'pending' | 'approved' | 'rejected' | 'not_applied' }) {
+  const map = {
+    approved:    { label: 'APPROVED',    cls: 'text-[#8B5CF6] border-[#8B5CF6]' },
+    pending:     { label: 'PENDING',     cls: 'text-yellow-400 border-yellow-500' },
+    rejected:    { label: 'REJECTED',    cls: 'text-[#FF0055] border-[#FF0055]' },
+    not_applied: { label: 'NOT APPLIED', cls: 'text-[#6B7280] border-[#333]' },
+  };
+  const { label, cls } = map[status];
+  return (
+    <span className={`border text-[10px] tracking-widest px-2 py-0.5 font-display ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// Main app
+// ─────────────────────────────────────────────────────────
 export default function App() {
-  // Navigation State
   const [currentPage, setCurrentPage] = useState<'explore' | 'hub' | 'apply' | 'checker' | 'admin'>('explore');
-  
-  // Wallet Connection State
-  const [connectedWallet, setConnectedWallet] = useState<string>('');
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
-  const [customWalletInput, setCustomWalletInput] = useState<string>('');
-  const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
-  // Application Form State
-  const [formUsername, setFormUsername] = useState<string>('');
-  const [formLikeUsername, setFormLikeUsername] = useState<string>('');
-  const [formQtLink, setFormQtLink] = useState<string>('');
-  const [formCommentLink, setFormCommentLink] = useState<string>('');
-  const [formWallet, setFormWallet] = useState<string>('');
+  const [connectedWallet, setConnectedWallet] = useState('');
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+  const [customWalletInput, setCustomWalletInput] = useState('');
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const [formUsername, setFormUsername] = useState('');
+  const [formLikeUsername, setFormLikeUsername] = useState('');
+  const [formQtLink, setFormQtLink] = useState('');
+  const [formCommentLink, setFormCommentLink] = useState('');
+  const [formWallet, setFormWallet] = useState('');
   const [formErrors, setFormErrors] = useState<string[]>([]);
-  const [showFormSuccessAlert, setShowFormSuccessAlert] = useState<boolean>(false);
+  const [showFormSuccess, setShowFormSuccess] = useState(false);
 
-  // Whitelist Checker State
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [checkerSearchResult, setCheckerSearchResult] = useState<Applicant | null>(null);
-  const [checkerHasSearched, setCheckerHasSearched] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [checkerResult, setCheckerResult] = useState<Applicant | null>(null);
+  const [checkerSearched, setCheckerSearched] = useState(false);
 
-  // Admin Portal State
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
-  const [adminPasscode, setAdminPasscode] = useState<string>('');
-  const [adminPasscodeError, setAdminPasscodeError] = useState<boolean>(false);
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const [adminPasscode, setAdminPasscode] = useState('');
+  const [adminPasscodeError, setAdminPasscodeError] = useState(false);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [merkleTree, setMerkleTree] = useState<MerkleTree | null>(null);
-  const [proofAddress, setProofAddress] = useState<string>('');
+  const [proofAddress, setProofAddress] = useState('');
   const [generatedProof, setGeneratedProof] = useState<string[]>([]);
-  const [manualAddressInput, setManualAddressInput] = useState<string>('');
-  const [passcodeModalOpen, setPasscodeModalOpen] = useState<boolean>(false);
+  const [manualAddressInput, setManualAddressInput] = useState('');
+  const [passcodeModalOpen, setPasscodeModalOpen] = useState(false);
 
+  // ── Data ───────────────────────────────────────────────
   const fetchApplicants = async () => {
     try {
       const res = await fetch(`${API}/applicants`);
-      const data = await res.json();
-      setApplicants(data);
-    } catch {
-      console.error('API offline — applicants unavailable');
-    }
+      setApplicants(await res.json());
+    } catch { console.error('API offline'); }
   };
 
   useEffect(() => { fetchApplicants(); }, []);
 
-  // Compute Merkle Tree dynamically whenever approved applicants change
   useEffect(() => {
-    const approvedAddresses = applicants
-      .filter(app => app.status === 'approved')
-      .map(app => app.wallet);
-    
-    if (approvedAddresses.length > 0) {
-      const tree = new MerkleTree(approvedAddresses);
-      setMerkleTree(tree);
-    } else {
-      setMerkleTree(null);
-    }
+    const approved = applicants.filter(a => a.status === 'approved').map(a => a.wallet);
+    setMerkleTree(approved.length > 0 ? new MerkleTree(approved) : null);
   }, [applicants]);
 
-  // Refresh from API after any mutation
-  const refreshApplicants = () => fetchApplicants();
+  const refresh = () => fetchApplicants();
 
-  // ── Web3 Connection Logic ───────────────────────
+  // ── Wallet ─────────────────────────────────────────────
   const connectMetaMask = async () => {
-    if (window.ethereum) {
+    if ((window as any).ethereum) {
       try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        if (accounts && accounts[0]) {
-          const addr = accounts[0];
-          setConnectedWallet(addr);
-          setFormWallet(addr);
+        const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
+        if (accounts?.[0]) {
+          setConnectedWallet(accounts[0]);
+          setFormWallet(accounts[0]);
           setIsWalletModalOpen(false);
-          triggerAlert('MetaMask connected successfully!');
         }
-      } catch (err) {
-        console.error('MetaMask connection failed:', err);
-        triggerAlert('MetaMask connection rejected by user.');
-      }
+      } catch { alert('MetaMask rejected.'); }
     } else {
-      triggerAlert('MetaMask not detected! Opening EVM Sandbox Sandbox.');
       setIsWalletModalOpen(true);
     }
   };
 
-  const connectSimulatedWallet = (addr: string) => {
+  const connectSimulated = (addr: string) => {
     setConnectedWallet(addr);
     setFormWallet(addr);
     setIsWalletModalOpen(false);
-    triggerAlert(`Simulated wallet connected: ${addr.substring(0, 6)}...${addr.substring(38)}`);
   };
 
-  const handleCustomWalletConnect = () => {
+  const handleCustomConnect = () => {
     if (/^0x[a-fA-F0-9]{40}$/.test(customWalletInput)) {
-      connectSimulatedWallet(customWalletInput);
+      connectSimulated(customWalletInput);
       setCustomWalletInput('');
     } else {
-      alert('Please enter a valid 20-byte EVM address (0x followed by 40 hex characters)');
+      alert('Invalid EVM address');
     }
   };
 
-  const disconnectWallet = () => {
-    setConnectedWallet('');
-    triggerAlert('Wallet disconnected.');
+  const copyWallet = () => {
+    navigator.clipboard.writeText(connectedWallet);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  const copyWalletToClipboard = () => {
-    if (connectedWallet) {
-      navigator.clipboard.writeText(connectedWallet);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    }
-  };
-
-  // Helper alert function
-  const triggerAlert = (msg: string) => {
-    alert(msg);
-  };
-
-  // Get Whitelist Status of Connected Wallet
-  const getConnectedWalletStatus = (): 'not_applied' | 'pending' | 'approved' | 'rejected' => {
+  const walletStatus = (): 'not_applied' | 'pending' | 'approved' | 'rejected' => {
     if (!connectedWallet) return 'not_applied';
-    const found = applicants.find(app => standardizeAddress(app.wallet) === standardizeAddress(connectedWallet));
-    if (!found) return 'not_applied';
-    return found.status;
+    const found = applicants.find(a => standardizeAddress(a.wallet) === standardizeAddress(connectedWallet));
+    return found?.status ?? 'not_applied';
   };
 
-  // ── Whitelist Submission Logic ───────────────────
+  // ── Apply ──────────────────────────────────────────────
   const handleApplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: string[] = [];
-
-    if (!formUsername.trim()) errors.push('Twitter username is required (Step 1: Follow)');
-    if (!formLikeUsername.trim()) errors.push('Twitter username confirming the like is required (Step 2: Like)');
-
-    const isTwitter = (url: string) => url.includes('twitter.com') || url.includes('x.com');
-    if (!isTwitter(formQtLink)) errors.push('Quote Tweet Link must be a valid Twitter/X link (Step 3)');
-    if (!isTwitter(formCommentLink)) errors.push('Comment Link must be a valid Twitter/X link (Step 4)');
-    if (!/^0x[a-fA-F0-9]{40}$/.test(formWallet.trim())) errors.push('EVM Wallet must be a valid 0x address (Step 5)');
-
-    if (errors.length > 0) { setFormErrors(errors); return; }
+    if (!formUsername.trim()) errors.push('Step 01: Twitter username required');
+    if (!formLikeUsername.trim()) errors.push('Step 02: Username confirming like required');
+    const isTw = (u: string) => u.includes('twitter.com') || u.includes('x.com');
+    if (!isTw(formQtLink)) errors.push('Step 03: Must be a valid x.com / twitter.com URL');
+    if (!/^0x[a-fA-F0-9]{40}$/.test(formWallet.trim())) errors.push('Step 04: Invalid EVM address');
+    if (errors.length) { setFormErrors(errors); return; }
 
     try {
       const res = await fetch(`${API}/applicants`, {
@@ -170,40 +166,37 @@ export default function App() {
           username: formUsername.trim().replace('@', ''),
           likeUsername: formLikeUsername.trim().replace('@', ''),
           qtLink: formQtLink.trim(),
-          commentLink: formCommentLink.trim(),
+          commentLink: '',
           wallet: formWallet.trim(),
         }),
       });
       const result = await res.json();
       if (!result.success) { setFormErrors([result.message]); return; }
-
       setFormErrors([]);
-      setShowFormSuccessAlert(true);
+      setShowFormSuccess(true);
       setFormUsername(''); setFormLikeUsername('');
       setFormQtLink(''); setFormCommentLink('');
       setFormWallet(connectedWallet || '');
-      refreshApplicants();
+      refresh();
     } catch {
-      setFormErrors(['Could not reach the server. Make sure the API is running on port 3001.']);
+      setFormErrors(['Server unreachable. Is the API running on :3001?']);
     }
   };
 
-  // ── Checker Logic ──────────────────────────────
-  const handleSearchCheck = () => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return;
-
+  // ── Checker ────────────────────────────────────────────
+  const handleSearch = () => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return;
     const found = applicants.find(
-      app => app.wallet.toLowerCase() === query || app.username.toLowerCase() === query.replace('@', '')
+      a => a.wallet.toLowerCase() === q || a.username.toLowerCase() === q.replace('@', '')
     );
-
-    setCheckerSearchResult(found || null);
-    setCheckerHasSearched(true);
+    setCheckerResult(found ?? null);
+    setCheckerSearched(true);
   };
 
-  // ── Admin Lock & Key passcode logic ──────────────
-  const handleUnlockAdmin = () => {
-    if (adminPasscode.toLowerCase() === 'bobo' || adminPasscode.toLowerCase() === 'fugly') {
+  // ── Admin ──────────────────────────────────────────────
+  const unlockAdmin = () => {
+    if (['bobo', 'fugly'].includes(adminPasscode.toLowerCase())) {
       setIsAdminUnlocked(true);
       setAdminPasscodeError(false);
       setPasscodeModalOpen(false);
@@ -214,1060 +207,724 @@ export default function App() {
     }
   };
 
-  const handleAdminAction = async (wallet: string, action: 'approved' | 'rejected') => {
-    try {
-      await fetch(`${API}/applicants/${encodeURIComponent(wallet)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: action }),
-      });
-      refreshApplicants();
-    } catch { triggerAlert('API error updating status.'); }
-  };
-
-  const handleAdminDelete = async (wallet: string) => {
-    if (!confirm('Delete this application?')) return;
-    try {
-      await fetch(`${API}/applicants/${encodeURIComponent(wallet)}`, { method: 'DELETE' });
-      refreshApplicants();
-    } catch { triggerAlert('API error deleting applicant.'); }
-  };
-
-  const handleManualWhitelist = async () => {
-    const wallets = manualAddressInput.split(/[\n,]/).map(l => l.trim()).filter(l => /^0x[a-fA-F0-9]{40}$/.test(l));
-    if (wallets.length === 0) { triggerAlert('No valid EVM addresses found.'); return; }
-    try {
-      const res = await fetch(`${API}/applicants/batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallets }),
-      });
-      const result = await res.json();
-      setManualAddressInput('');
-      triggerAlert(`Whitelisted ${result.added} wallets!`);
-      refreshApplicants();
-    } catch { triggerAlert('API error during batch import.'); }
-  };
-
-  // Generate Merkle Proof for select address in Admin
-  const handleGenerateProof = () => {
-    if (!merkleTree) {
-      triggerAlert('Merkle Tree is empty! Approve some wallets first.');
-      return;
-    }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(proofAddress)) {
-      triggerAlert('Please enter a valid 0x address to check proof.');
-      return;
-    }
-
-    const proof = merkleTree.getProof(proofAddress);
-    setGeneratedProof(proof);
-  };
-
-  // Database Suite (JSON / CSV Exporters)
-  const exportToJSON = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(applicants, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", "fugly_whitelist_applicants.json");
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  const exportToCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Username,Wallet,QT Link,Comment Link,Status,Applied At\n";
-    
-    applicants.forEach(app => {
-      csvContent += `"${app.username}","${app.wallet}","${app.qtLink}","${app.commentLink}","${app.status}","${app.appliedAt}"\n`;
+  const adminAction = async (wallet: string, action: 'approved' | 'rejected') => {
+    await fetch(`${API}/applicants/${encodeURIComponent(wallet)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: action }),
     });
-
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", encodeURI(csvContent));
-    downloadAnchor.setAttribute("download", "fugly_whitelist.csv");
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    refresh();
   };
 
-  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileReader = new FileReader();
-    if (e.target.files && e.target.files[0]) {
-      fileReader.readAsText(e.target.files[0], "UTF-8");
-      fileReader.onload = (event) => {
-        try {
-          const parsed = JSON.parse(event.target?.result as string);
-          if (Array.isArray(parsed)) {
-            // Basic validation
-            const valid = parsed.every(item => 
-              'username' in item && 'wallet' in item && 'status' in item
-            );
-            if (valid) {
-              saveApplicants(parsed);
-              triggerAlert('Whitelist database successfully restored!');
-            } else {
-              triggerAlert('Invalid file structure. Make sure keys match whitelist entries.');
-            }
+  const adminDelete = async (wallet: string) => {
+    if (!confirm('Delete this application?')) return;
+    await fetch(`${API}/applicants/${encodeURIComponent(wallet)}`, { method: 'DELETE' });
+    refresh();
+  };
+
+  const batchWhitelist = async () => {
+    const wallets = manualAddressInput.split(/[\n,]/).map(l => l.trim()).filter(l => /^0x[a-fA-F0-9]{40}$/.test(l));
+    if (!wallets.length) { alert('No valid addresses.'); return; }
+    const res = await fetch(`${API}/applicants/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wallets }),
+    });
+    const r = await res.json();
+    setManualAddressInput('');
+    alert(`Added ${r.added} wallets.`);
+    refresh();
+  };
+
+  const generateProof = () => {
+    if (!merkleTree) { alert('No approved wallets.'); return; }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(proofAddress)) { alert('Invalid address.'); return; }
+    setGeneratedProof(merkleTree.getProof(proofAddress));
+  };
+
+  const exportJSON = () => {
+    const a = document.createElement('a');
+    a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(applicants, null, 2));
+    a.download = 'fugly_whitelist.json';
+    a.click();
+  };
+
+  const exportCSV = () => {
+    let csv = 'Username,Wallet,Status,Applied At\n';
+    applicants.forEach(a => { csv += `"${a.username}","${a.wallet}","${a.status}","${a.appliedAt}"\n`; });
+    const el = document.createElement('a');
+    el.href = encodeURI('data:text/csv;charset=utf-8,' + csv);
+    el.download = 'fugly_whitelist.csv';
+    el.click();
+  };
+
+  const importJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string);
+        if (Array.isArray(parsed) && parsed.every(i => 'username' in i && 'wallet' in i && 'status' in i)) {
+          // batch import via API
+          const wallets = parsed.filter(i => i.status === 'approved').map((i: Applicant) => i.wallet);
+          if (wallets.length) {
+            await fetch(`${API}/applicants/batch`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ wallets }),
+            });
           }
-        } catch (error) {
-          triggerAlert('Failed to parse JSON file.');
-        }
-      };
-    }
+          refresh();
+          alert('Import complete.');
+        } else { alert('Invalid file structure.'); }
+      } catch { alert('Failed to parse JSON.'); }
+    };
+    reader.readAsText(file);
   };
 
-  const resetLocalDatabase = () => {
-    if (confirm('CRITICAL WARNING: This will delete ALL applications and revert to default demo data! Proceed?')) {
-      saveApplicants(INITIAL_MOCK_APPLICANTS);
-      triggerAlert('Database reset to defaults.');
-    }
+  // ── shared input style ─────────────────────────────────
+  const input = 'w-full bg-white border border-[#D1D5DB] text-[#1E1040] text-sm px-3 py-2.5 outline-none focus:border-[#8B5CF6] transition-colors font-mono placeholder-[#9CA3AF]';
+  const btn = (variant: 'acid' | 'hot' | 'ghost' | 'dark') => {
+    const v = {
+      acid:  'bg-[#8B5CF6] text-black hover:bg-[#c4ef00]',
+      hot:   'bg-[#FF0055] text-white hover:bg-[#e0004a]',
+      ghost: 'border border-[#333] text-[#6B7280] hover:border-[#8B5CF6] hover:text-[#8B5CF6]',
+      dark:  'bg-[#111] border border-white/70 text-white hover:border-[#8B5CF6]',
+    }[variant];
+    return `${v} text-xs tracking-widest px-4 py-2 font-display cursor-pointer transition-all active:scale-95`;
   };
 
+  // ═══════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-black text-white relative font-bobo overflow-x-hidden pb-12">
-      
-      {/* BACKGROUND DECORATIVE GRID */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:30px_30px] opacity-35 z-0 pointer-events-none"></div>
+    <div className="min-h-screen bg-[#090909] text-white font-mono overflow-x-hidden">
 
-      {/* HEADER SECTION */}
-      <header className="relative z-10 border-b-6 border-black bg-pinkCard p-4 text-black flex items-center justify-between shadow-retro">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentPage('explore')}>
-          <img
-            src="/artwork/FUGLY.gif"
-            alt="Fugly Logo"
-            className="w-12 h-12 rounded-xl border-3 border-black shadow-retro"
-            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-          />
-          <div>
-            <h1 className="text-2xl tracking-wider leading-none glow-pink">FUGLY FAM</h1>
-            <span className="text-[10px] tracking-widest font-jersey border-2 border-black bg-yellow-300 px-2 py-0.5 rounded-md mt-1 inline-block">ETH MINT WL</span>
-          </div>
-        </div>
+      {/* ── FIXED HEADER ─────────────────────────────── */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/60 backdrop-blur-xl backdrop-blur-md border-b border-[#E5E5E5] px-6 h-14 flex items-center justify-between">
+        <button
+          onClick={() => setCurrentPage('explore')}
+          className="flex items-center gap-3 group"
+        >
+          <img src="/artwork/FUGLY.gif" alt="" className="h-7 w-auto" />
+          <span
+            className="font-display text-2xl tracking-[0.1em] glitch"
+            style={{ color: '#8B5CF6' }}
+          >
+            FUGLY FAM
+          </span>
+        </button>
 
         <nav className="flex items-center gap-2">
           {connectedWallet ? (
-            <div className="flex items-center border-3 border-black bg-white rounded-xl overflow-hidden shadow-retro">
-              <span 
-                className="font-jersey text-base px-3 py-1 bg-[#77EBFF] border-r-3 border-black cursor-pointer hover:bg-opacity-85 flex items-center gap-1.5"
-                onClick={copyWalletToClipboard}
+            <div className="flex items-center border border-[#8B5CF6]/40 transition-all" style={{ boxShadow: '0 0 8px rgba(139,92,246,0.15)' }}>
+              <button
+                onClick={copyWallet}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono text-[#8B5CF6] hover:bg-[#8B5CF6]/10 hover:text-[#6D28D9] transition-all duration-200"
               >
-                {copySuccess ? <Check size={14} className="text-green-700" /> : <Copy size={14} />}
-                {connectedWallet.substring(0, 5)}...{connectedWallet.substring(38)}
-              </span>
-              <button 
-                onClick={disconnectWallet}
-                className="px-2.5 py-1 text-[11px] font-jersey bg-red-400 hover:bg-red-500 font-bold border-0 text-black cursor-pointer transition-all"
+                {copySuccess ? <Check size={12} /> : <Copy size={12} />}
+                {connectedWallet.slice(0, 6)}…{connectedWallet.slice(-4)}
+              </button>
+              <button
+                onClick={() => setConnectedWallet('')}
+                className="px-3 py-1.5 text-xs text-[#FF0055]/70 hover:text-[#FF0055] hover:bg-[#FF0055]/10 transition-all duration-200 border-l border-[#8B5CF6]/40"
               >
-                DISCONNECT
+                ×
               </button>
             </div>
           ) : (
-            <button 
+            <button
               onClick={connectMetaMask}
-              className="border-3 border-black bg-[#77EBFF] text-black rounded-xl px-4 py-1.5 text-xs tracking-widest shadow-retro active:scale-95 transition-all cursor-pointer flex items-center gap-2"
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs tracking-widest font-display text-[#8B5CF6] border border-[#8B5CF6]/50 hover:border-[#8B5CF6] hover:bg-[#8B5CF6] hover:text-white transition-all duration-200 cursor-pointer"
+              style={{ boxShadow: '0 0 0 rgba(139,92,246,0)', transition: 'all 0.2s ease' }}
+              onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 0 16px rgba(139,92,246,0.35)')}
+              onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 0 0 rgba(139,92,246,0)')}
             >
-              <Wallet size={14} />
-              CONNECT WALLET
+              <Wallet size={12} />
+              CONNECT
             </button>
           )}
-
-          <button 
-            onClick={() => {
-              if (isAdminUnlocked) {
-                setCurrentPage('admin');
-              } else {
-                setPasscodeModalOpen(true);
-              }
-            }}
-            className="border-3 border-black bg-black text-white hover:bg-neutral-800 rounded-xl p-1.5 shadow-retro cursor-pointer"
-            title="Admin Portal"
+          <button
+            onClick={() => isAdminUnlocked ? setCurrentPage('admin') : setPasscodeModalOpen(true)}
+            className="p-1.5 text-[#ccc] border border-[#E5E5E5] hover:border-[#8B5CF6]/60 hover:text-[#8B5CF6] transition-all duration-200 cursor-pointer"
+            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 0 10px rgba(139,92,246,0.25)')}
+            onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
           >
-            <Settings size={18} />
+            <Settings size={14} />
           </button>
         </nav>
       </header>
 
-      {/* MAIN CONTAINER */}
-      <main className="container mx-auto px-4 mt-8 relative z-10">
-        
-        {/* EXPLORE PAGE */}
-        {currentPage === 'explore' && (
-          <section className="flex flex-col items-center justify-center min-h-[80vh] relative rounded-3xl border-8 border-black overflow-hidden shadow-retro-lg bg-black">
-            {/* Full-bleed banner artwork */}
+      {/* ── EXPLORE (full-bleed, outside main container) ─ */}
+      {currentPage === 'explore' && (
+        <>
+          <section className="relative w-full h-screen flex flex-col items-center justify-end overflow-hidden">
+            {/* banner */}
             <img
               src="/artwork/BANNER-1.png"
-              alt="FUGLY FAM Banner"
+              alt=""
               className="absolute inset-0 w-full h-full object-cover object-center"
             />
-            {/* Stars overlay for texture */}
+            {/* stars overlay */}
             <img
               src="/artwork/stars.gif"
               alt=""
-              className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-screen pointer-events-none"
+              className="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-screen pointer-events-none"
             />
-            {/* Subtle bottom gradient so text remains readable */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
+            {/* gradient */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#090909] via-[#090909]/30 to-transparent" />
 
-            <div className="relative z-10 flex flex-col items-center max-w-2xl px-6 text-center gap-6 pb-12 pt-8">
-              <img
-                src="/artwork/FUGLY.gif"
-                alt="Fuglyfam"
-                className="w-28 h-28 rounded-full border-6 border-black shadow-retro-lg drop-shadow-2xl"
-              />
-
-              <h2 className="text-4xl md:text-6xl text-white tracking-widest leading-none glow-pink drop-shadow-lg">
-                FUGLY FAM
-              </h2>
-
-              <p className="font-jersey text-xl md:text-2xl text-[#77EBFF] leading-relaxed max-w-lg glow-cyan drop-shadow-lg">
-                WE ARE EXTREMELY UGLY, BUT RETRO IS ETERNAL. JOIN THE ETH WHITELIST TO SECURE YOUR NFT MINT.
+            {/* content */}
+            <div className="relative z-10 w-full max-w-5xl mx-auto px-6 pb-20 fade-up">
+              <p className="font-mono text-white text-xs tracking-[0.3em] mb-4 opacity-80">
+                ETH WHITELIST PORTAL — SEASON 01
               </p>
-
+              <h1
+                className="font-display leading-none text-white mb-6"
+                style={{ fontSize: 'clamp(72px, 12vw, 160px)', letterSpacing: '0.04em' }}
+              >
+                FUGLY<br />
+                <span className="glitch" style={{ color: '#8B5CF6' }}>FAM.</span>
+              </h1>
+              <p className="font-mono text-white text-sm mb-10 max-w-md leading-relaxed">
+                The Fugly Fam is all here.
+              </p>
               <button
                 onClick={() => setCurrentPage('hub')}
-                className="mt-4 border-4 border-black bg-[#FF9393] text-black text-xl md:text-2xl rounded-2xl px-12 py-4 tracking-wider shadow-retro hover:-translate-y-1 hover:shadow-glow active:scale-95 transition-all cursor-pointer"
+                className="font-display text-xl tracking-[0.15em] bg-[#8B5CF6] text-black px-12 py-4 hover:bg-white transition-colors cursor-pointer border-0"
               >
-                ENTER THE PORTAL
+                ENTER THE PORTAL →
               </button>
             </div>
           </section>
-        )}
 
-        {/* HUB PAGE */}
-        {currentPage === 'hub' && (
-          <section className="max-w-4xl mx-auto flex flex-col gap-8">
-            
-            {/* WELCOME BANNER WITH USER ARTWORK */}
-            <div className="rounded-3xl border-6 border-black bg-pinkCard p-6 md:p-8 text-black shadow-retro relative overflow-hidden flex flex-col md:flex-row items-center gap-6">
-              <div
-                className="absolute inset-0 opacity-30 bg-center bg-cover z-0 pointer-events-none"
-                style={{ backgroundImage: `url('/artwork/BANNER-1.png')` }}
-              ></div>
+          {/* ticker below fold */}
+          <Ticker />
+        </>
+      )}
 
-              <div className="relative z-10 flex-1 flex flex-col gap-2">
-                <h3 className="text-3xl md:text-4xl leading-none">MINT ENTRY HUB</h3>
-                <p className="font-jersey text-lg md:text-xl text-neutral-800 leading-tight">
-                  Welcome to the official FuglyFam Ethereum portal. Complete social actions to qualify for the whitelist. Minting live soon on Ethereum Mainnet.
-                </p>
-                
-                {/* Connected status badge */}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="border-2 border-black bg-white rounded-lg px-3 py-1 text-xs flex items-center gap-1.5">
-                    Wallet status: 
-                    {connectedWallet ? (
-                      <span className="text-green-600 font-jersey font-bold text-sm">CONNECTED</span>
-                    ) : (
-                      <span className="text-red-500 font-jersey font-bold text-sm">DISCONNECTED</span>
-                    )}
-                  </span>
+      {/* ── ALL OTHER PAGES ──────────────────────────── */}
+      {currentPage !== 'explore' && (
+        <main className="pt-14 relative min-h-screen">
+          {/* artwork background */}
+          <div className="fixed inset-0 z-0 pointer-events-none">
+            <img src="/artwork/BANNER-2.png" alt="" className="w-full h-full object-cover object-center opacity-50"/>
+            <div className="absolute inset-0" style={{ background: 'rgba(255,255,255,0.55)' }}/>
+          </div>
+          <div className="relative z-10">
 
-                  {connectedWallet && (
-                    <span className="border-2 border-black bg-white rounded-lg px-3 py-1 text-xs flex items-center gap-1.5">
-                      Your status: 
-                      {getConnectedWalletStatus() === 'approved' && (
-                        <span className="text-green-600 font-jersey font-bold text-sm bg-green-50 px-1.5 py-0.5 rounded">APPROVED 🎉</span>
-                      )}
-                      {getConnectedWalletStatus() === 'pending' && (
-                        <span className="text-yellow-600 font-jersey font-bold text-sm bg-yellow-50 px-1.5 py-0.5 rounded">PENDING REVIEW ⏳</span>
-                      )}
-                      {getConnectedWalletStatus() === 'rejected' && (
-                        <span className="text-red-600 font-jersey font-bold text-sm bg-red-50 px-1.5 py-0.5 rounded">REJECTED ❌</span>
-                      )}
-                      {getConnectedWalletStatus() === 'not_applied' && (
-                        <span className="text-blue-600 font-jersey font-bold text-sm bg-blue-50 px-1.5 py-0.5 rounded">NOT YET APPLIED</span>
-                      )}
-                    </span>
-                  )}
-                </div>
+          {/* ── HUB ───────────────────────────────────── */}
+          {currentPage === 'hub' && (
+            <div className="max-w-5xl mx-auto px-6 py-12 flex flex-col gap-10">
+
+              {/* stats strip */}
+              <div className="grid grid-cols-3 border border-white/70 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg shadow-black/10">
+                {[
+                  { label: 'WHITELISTED', val: applicants.filter(a => a.status === 'approved').length, color: '#8B5CF6' },
+                  { label: 'PENDING',     val: applicants.filter(a => a.status === 'pending').length,  color: '#FFB800' },
+                  { label: 'TOTAL QUEUE', val: applicants.length,                                       color: '#888' },
+                ].map(({ label, val, color }, i) => (
+                  <div key={i} className={`p-6 ${i < 2 ? 'border-r border-white/70' : ''}`}>
+                    <p className="text-[10px] tracking-[0.25em] text-[#6B7280] mb-1">{label}</p>
+                    <p className="font-display text-5xl" style={{ color }}>{val}</p>
+                  </div>
+                ))}
               </div>
 
-              <img 
-                src="/artwork/FUGLYlabs.jpg" 
-                alt="Fugly logo" 
-                className="w-24 h-24 rounded-2xl border-4 border-black shadow-retro relative z-10"
-              />
-            </div>
-
-            {/* ACTION PANELS GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* APPLY WHITE LIST CARD */}
-              <div className="border-6 border-black bg-[#FF9393] rounded-3xl p-6 text-black shadow-retro flex flex-col gap-4 relative overflow-hidden">
-                <h4 className="text-2xl md:text-3xl leading-none">1. APPLY WHITELIST</h4>
-                <p className="font-jersey text-base md:text-lg leading-snug">
-                  Link your Twitter account, verify your social tasks (Follow, Quote Tweet, Comment with 3 Friends), and submit your Ethereum address.
-                </p>
-                <div className="flex-1"></div>
-                
-                {getConnectedWalletStatus() === 'approved' ? (
-                  <div className="border-3 border-black bg-green-100 p-3 rounded-2xl text-green-800 text-xs flex items-center gap-2">
-                    <CheckCircle size={18} className="shrink-0" />
-                    <span>You are already whitelisted! Prepare for mint day.</span>
-                  </div>
-                ) : getConnectedWalletStatus() === 'pending' ? (
-                  <div className="border-3 border-black bg-yellow-100 p-3 rounded-2xl text-yellow-800 text-xs flex items-center gap-2">
-                    <AlertCircle size={18} className="shrink-0" />
-                    <span>Your application is currently pending developer review. Check back later!</span>
-                  </div>
-                ) : (
-                  <button 
-                    onClick={() => setCurrentPage('apply')}
-                    className="border-3 border-black bg-black text-white hover:bg-neutral-800 rounded-2xl py-3 text-center text-lg tracking-wider shadow-retro cursor-pointer transition-all active:scale-95"
-                  >
-                    START APPLICATION
-                  </button>
-                )}
-              </div>
-
-              {/* WHITELIST CHECKER CARD */}
-              <div className="border-6 border-black bg-[#77EBFF] rounded-3xl p-6 text-black shadow-retro flex flex-col gap-4 relative overflow-hidden">
-                <h4 className="text-2xl md:text-3xl leading-none">2. WL STATUS CHECKER</h4>
-                <p className="font-jersey text-base md:text-lg leading-snug">
-                  Query the live whitelist directory to see if your address is approved. Export options are available in the checker.
-                </p>
-                <div className="flex-1"></div>
-                <button 
-                  onClick={() => setCurrentPage('checker')}
-                  className="border-3 border-black bg-black text-white hover:bg-neutral-800 rounded-2xl py-3 text-center text-lg tracking-wider shadow-retro cursor-pointer transition-all active:scale-95"
-                >
-                  OPEN CHECKER
-                </button>
-              </div>
-
-            </div>
-          </section>
-        )}
-
-        {/* APPLY PAGE */}
-        {currentPage === 'apply' && (
-          <section className="max-w-xl mx-auto flex flex-col gap-6">
-
-            <div className="flex justify-between items-center">
-              <button
-                onClick={() => setCurrentPage('hub')}
-                className="border-3 border-black bg-white hover:bg-neutral-100 text-black px-4 py-1.5 rounded-xl text-xs tracking-wider shadow-retro cursor-pointer flex items-center gap-1.5"
-              >
-                <ArrowLeft size={14} /> BACK
-              </button>
-              <h3 className="text-2xl md:text-3xl leading-none glow-pink">APPLY WHITELIST</h3>
-            </div>
-
-            {/* Success State */}
-            {showFormSuccessAlert ? (
-              <div className="border-6 border-black bg-[#ffd5ec] text-black rounded-3xl p-8 shadow-retro-lg flex flex-col items-center gap-4 text-center">
-                <CheckCircle size={64} className="text-green-600 animate-bounce" />
-                <h4 className="text-3xl">APPLICATION SUBMITTED!</h4>
-                <p className="font-jersey text-lg leading-relaxed max-w-md">
-                  Your details have been saved to our queue. The team will verify your Twitter tasks and approve your EVM wallet shortly!
-                </p>
-                <div className="flex gap-4 mt-2">
-                  <button
-                    onClick={() => { setShowFormSuccessAlert(false); setCurrentPage('hub'); }}
-                    className="border-3 border-black bg-black text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-retro hover:bg-neutral-800 cursor-pointer"
-                  >
-                    GO TO HUB
-                  </button>
-                  <button
-                    onClick={() => { setShowFormSuccessAlert(false); setCurrentPage('checker'); }}
-                    className="border-3 border-black bg-[#77EBFF] text-black px-6 py-2.5 rounded-xl text-sm font-bold shadow-retro hover:bg-cyan-400 cursor-pointer"
-                  >
-                    CHECK STATUS
-                  </button>
+              {/* wallet status */}
+              {connectedWallet && (
+                <div className="border border-white/70 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg shadow-black/10 px-5 py-3 flex items-center justify-between text-xs">
+                  <span className="text-[#6B7280] tracking-widest">YOUR STATUS</span>
+                  <StatusBadge status={walletStatus()} />
                 </div>
-              </div>
-            ) : (
-              <form onSubmit={handleApplySubmit} className="border-6 border-black bg-pinkCard rounded-[2.2rem] p-6 text-black shadow-retro flex flex-col gap-4">
+              )}
 
-                {/* Errors */}
-                {formErrors.length > 0 && (
-                  <div className="border-3 border-black bg-red-100 p-4 rounded-2xl text-red-800 text-xs flex flex-col gap-1">
-                    <span className="font-bold flex items-center gap-1.5 mb-1"><XCircle size={16} /> FIX BEFORE SUBMITTING:</span>
-                    {formErrors.map((err, idx) => (
-                      <span key={idx} className="font-jersey text-sm">• {err}</span>
-                    ))}
-                  </div>
-                )}
+              {/* action cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                {/* TASK 1 — Follow */}
-                <div className="flex items-center justify-between gap-3 bg-black text-white rounded-2xl px-5 py-3.5">
-                  <div className="flex-1">
-                    <span className="text-[10px] text-[#FF9393] tracking-widest block">STEP 1</span>
-                    <span className="text-sm tracking-wide">FOLLOW FUGLYFAM</span>
+                {/* APPLY */}
+                <div className="border border-white/70 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg shadow-black/10 p-8 flex flex-col gap-6 hover:border-[#8B5CF6] transition-colors group">
+                  <div>
+                    <p className="text-[#8B5CF6] text-[10px] tracking-[0.3em] mb-2">01 — APPLICATION</p>
+                    <h2 className="font-display text-4xl text-[#1E1040]">APPLY<br />WHITELIST</h2>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <input
-                      type="text"
-                      placeholder="Username"
-                      value={formUsername}
-                      onChange={(e) => setFormUsername(e.target.value)}
-                      className="w-28 bg-white text-black text-center rounded-lg px-2 py-2 text-xs outline-none placeholder-black/40 font-jersey border-0"
-                    />
-                    <a
-                      href="https://x.com/fuglyfam"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="bg-white text-black rounded-lg px-4 py-2 text-xs font-jersey cursor-pointer border-0 hover:bg-neutral-200 transition-all whitespace-nowrap"
-                    >
-                      Follow
-                    </a>
-                  </div>
-                </div>
-
-                {/* TASK 2 — Like */}
-                <div className="flex items-center justify-between gap-3 bg-black text-white rounded-2xl px-5 py-3.5">
-                  <div className="flex-1">
-                    <span className="text-[10px] text-[#FF9393] tracking-widest block">STEP 2</span>
-                    <span className="text-sm tracking-wide">LIKE PINNED POST</span>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Username"
-                    value={formLikeUsername}
-                    onChange={(e) => setFormLikeUsername(e.target.value)}
-                    className="w-32 bg-white text-black text-center rounded-lg px-2 py-2 text-xs outline-none placeholder-black/40 font-jersey border-0 shrink-0"
-                  />
-                </div>
-
-                {/* TASK 3 — QT */}
-                <div className="flex items-center justify-between gap-3 bg-black text-white rounded-2xl px-5 py-3.5">
-                  <div className="flex-1">
-                    <span className="text-[10px] text-[#FF9393] tracking-widest block">STEP 3</span>
-                    <span className="text-sm tracking-wide leading-tight">QT PINNED POST WITH<br />&quot;fuglys are coming&quot;</span>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="QT Link"
-                    value={formQtLink}
-                    onChange={(e) => setFormQtLink(e.target.value)}
-                    className="w-32 bg-white text-black text-center rounded-lg px-2 py-2 text-xs outline-none placeholder-black/40 font-jersey border-0 shrink-0"
-                  />
-                </div>
-
-                {/* TASK 4 — Tag 3 friends */}
-                <div className="flex items-center justify-between gap-3 bg-black text-white rounded-2xl px-5 py-3.5">
-                  <div className="flex-1">
-                    <span className="text-[10px] text-[#FF9393] tracking-widest block">STEP 4</span>
-                    <span className="text-sm tracking-wide">TAG 3 FRIENDS ON PINNED POST</span>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Comment link"
-                    value={formCommentLink}
-                    onChange={(e) => setFormCommentLink(e.target.value)}
-                    className="w-32 bg-white text-black text-center rounded-lg px-2 py-2 text-xs outline-none placeholder-black/40 font-jersey border-0 shrink-0"
-                  />
-                </div>
-
-                {/* TASK 5 — EVM Wallet */}
-                <div className="flex items-center justify-between gap-3 bg-black text-white rounded-2xl px-5 py-3.5">
-                  <div className="flex-1">
-                    <span className="text-[10px] text-[#FF9393] tracking-widest block">STEP 5</span>
-                    <span className="text-sm tracking-wide">SUBMIT EVM WALLET</span>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="0x......."
-                    value={formWallet}
-                    onChange={(e) => setFormWallet(e.target.value)}
-                    disabled={!!connectedWallet}
-                    className={`w-32 text-black text-center rounded-lg px-2 py-2 text-xs outline-none font-jersey border-0 shrink-0 ${connectedWallet ? 'bg-neutral-300 cursor-not-allowed' : 'bg-white placeholder-black/40'}`}
-                  />
-                </div>
-
-                {connectedWallet && (
-                  <p className="font-jersey text-xs text-neutral-600 text-center -mt-2">
-                    Wallet auto-filled from MetaMask. Disconnect in header to change.
+                  <p className="text-[#6B7280] text-xs leading-relaxed">
+                    Complete 5 social tasks to qualify for the ETH mint. Follow, like, QT, tag friends, and submit your wallet.
                   </p>
-                )}
+                  <div className="mt-auto">
+                    {walletStatus() === 'approved' ? (
+                      <p className="text-[#8B5CF6] text-xs tracking-widest">✓ YOU ARE WHITELISTED</p>
+                    ) : walletStatus() === 'pending' ? (
+                      <p className="text-yellow-500 text-xs tracking-widest">⏳ APPLICATION UNDER REVIEW</p>
+                    ) : (
+                      <button onClick={() => setCurrentPage('apply')} className={btn('acid') + ' w-full py-3 text-base'}>
+                        START APPLICATION
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-                <button
-                  type="submit"
-                  className="self-center bg-black text-white rounded-xl px-12 py-3 text-base font-bobo cursor-pointer border-0 hover:bg-neutral-800 transition-all mt-2 shadow-retro active:scale-95"
-                >
-                  SUBMIT
+                {/* CHECKER */}
+                <div className="border border-white/70 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg shadow-black/10 p-8 flex flex-col gap-6 hover:border-[#FF0055] transition-colors group">
+                  <div>
+                    <p className="text-[#FF0055] text-[10px] tracking-[0.3em] mb-2">02 — VERIFICATION</p>
+                    <h2 className="font-display text-4xl text-[#1E1040]">WL STATUS<br />CHECKER</h2>
+                  </div>
+                  <p className="text-[#6B7280] text-xs leading-relaxed">
+                    Query the live whitelist directory by wallet address or Twitter handle to verify your approval status.
+                  </p>
+                  <div className="mt-auto">
+                    <button onClick={() => setCurrentPage('checker')} className={btn('hot') + ' w-full py-3 text-base'}>
+                      OPEN CHECKER
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* ── APPLY ─────────────────────────────────── */}
+          {currentPage === 'apply' && (
+            <div className="max-w-2xl mx-auto px-6 py-12 flex flex-col gap-8">
+
+              <div className="flex items-center gap-4">
+                <button onClick={() => setCurrentPage('hub')} className={btn('ghost')}>
+                  <ArrowLeft size={12} className="inline mr-1" /> BACK
                 </button>
-              </form>
-            )}
+                <h2 className="font-display text-3xl text-[#8B5CF6]">WHITELIST APPLICATION</h2>
+              </div>
 
-          </section>
-        )}
+              {showFormSuccess ? (
+                <div className="border border-[#8B5CF6] p-10 flex flex-col items-center gap-6 text-center">
+                  <CheckCircle size={48} className="text-[#8B5CF6]" />
+                  <h3 className="font-display text-4xl">APPLICATION SUBMITTED</h3>
+                  <p className="text-[#6B7280] text-xs leading-relaxed max-w-sm">
+                    Your details are queued for review. The team will verify your social tasks and approve your wallet.
+                  </p>
+                  <div className="flex gap-3">
+                    <button onClick={() => { setShowFormSuccess(false); setCurrentPage('hub'); }} className={btn('dark')}>
+                      ← HUB
+                    </button>
+                    <button onClick={() => { setShowFormSuccess(false); setCurrentPage('checker'); }} className={btn('acid')}>
+                      CHECK STATUS
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleApplySubmit} className="flex flex-col gap-1">
 
-        {/* WHITELIST CHECKER PAGE */}
-        {currentPage === 'checker' && (
-          <section className="max-w-3xl mx-auto flex flex-col gap-6">
-            
-            <div className="flex justify-between items-center">
-              <button 
-                onClick={() => setCurrentPage('hub')}
-                className="border-3 border-black bg-white hover:bg-neutral-100 text-black px-4 py-1.5 rounded-xl text-xs tracking-wider shadow-retro cursor-pointer flex items-center gap-1.5"
-              >
-                <ArrowLeft size={14} /> BACK
-              </button>
-              <h3 className="text-2xl md:text-3xl leading-none glow-cyan">WHITELIST DIRECTORY</h3>
+                  {/* errors */}
+                  {formErrors.length > 0 && (
+                    <div className="border border-[#FF0055] bg-[#FF0055]/5 p-4 mb-4 flex flex-col gap-1">
+                      {formErrors.map((e, i) => (
+                        <p key={i} className="text-[#FF0055] text-xs font-mono">
+                          <XCircle size={10} className="inline mr-1.5" />{e}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* task rows */}
+                  {[
+                    {
+                      num: '01',
+                      label: 'FOLLOW FUGLYFAM',
+                      sub: <a href="https://x.com/FuglyETH" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#8B5CF6] hover:underline">@FuglyETH on X <ExternalLink size={9}/></a>,
+                      input: <input type="text" placeholder="@your username" value={formUsername} onChange={e => setFormUsername(e.target.value)} className={input + ' w-44 shrink-0'} />,
+                    },
+                    {
+                      num: '02',
+                      label: 'LIKE PINNED POST',
+                      sub: 'like the pinned post on our profile',
+                      input: <input type="text" placeholder="@your username" value={formLikeUsername} onChange={e => setFormLikeUsername(e.target.value)} className={input + ' w-44 shrink-0'} />,
+                    },
+                    {
+                      num: '03',
+                      label: 'QUOTE TWEET',
+                      sub: 'QT pinned post with "fuglys are coming"',
+                      input: <input type="text" placeholder="x.com/…/status/…" value={formQtLink} onChange={e => setFormQtLink(e.target.value)} className={input + ' w-44 shrink-0'} />,
+                    },
+                    {
+                      num: '04',
+                      label: 'SUBMIT EVM WALLET',
+                      sub: connectedWallet ? 'auto-filled from connected wallet' : 'ethereum mainnet address',
+                      input: <input type="text" placeholder="0x..." value={formWallet} onChange={e => setFormWallet(e.target.value)} disabled={!!connectedWallet} className={input + ' w-44 shrink-0 ' + (connectedWallet ? 'opacity-50 cursor-not-allowed' : '')} />,
+                    },
+                  ].map(({ num, label, sub, input: inp }) => (
+                    <div key={num} className="border border-white/70 hover:border-[#3A3A3A] bg-white/60 backdrop-blur-xl rounded-xl p-4 flex items-center gap-4 transition-colors">
+                      <span className="font-display text-2xl text-[#8B5CF6] w-8 shrink-0">{num}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[#1E1040] text-xs tracking-widest">{label}</p>
+                        <p className="text-[#6B7280] text-[10px] mt-0.5">{sub}</p>
+                      </div>
+                      <div className="shrink-0">{inp}</div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="submit"
+                    className="font-display text-xl tracking-[0.15em] bg-[#8B5CF6] text-black py-4 hover:bg-white transition-colors cursor-pointer border-0 mt-4"
+                  >
+                    SUBMIT APPLICATION →
+                  </button>
+                </form>
+              )}
             </div>
+          )}
 
-            {/* LIVE QUERY STATS */}
-            <div className="grid grid-cols-3 gap-4 border-4 border-black bg-pinkCard text-black rounded-2xl p-4 shadow-retro">
-              <div className="text-center border-r-3 border-black">
-                <span className="font-jersey text-sm text-neutral-700 block">WHITELISTED</span>
-                <span className="text-3xl leading-none font-jersey text-green-700">{applicants.filter(a => a.status === 'approved').length}</span>
-              </div>
-              <div className="text-center border-r-3 border-black">
-                <span className="font-jersey text-sm text-neutral-700 block">PENDING</span>
-                <span className="text-3xl leading-none font-jersey text-yellow-700">{applicants.filter(a => a.status === 'pending').length}</span>
-              </div>
-              <div className="text-center">
-                <span className="font-jersey text-sm text-neutral-700 block">TOTAL QUEUED</span>
-                <span className="text-3xl leading-none font-jersey">{applicants.length}</span>
-              </div>
-            </div>
+          {/* ── CHECKER ───────────────────────────────── */}
+          {currentPage === 'checker' && (
+            <div className="max-w-3xl mx-auto px-6 py-12 flex flex-col gap-8">
 
-            {/* SEARCH BOX */}
-            <div className="border-6 border-black bg-[#77EBFF] rounded-3xl p-6 text-black shadow-retro flex flex-col gap-4">
-              <h4 className="text-xl">QUERY WHITELIST STATUS</h4>
+              <div className="flex items-center gap-4">
+                <button onClick={() => setCurrentPage('hub')} className={btn('ghost')}>
+                  <ArrowLeft size={12} className="inline mr-1" /> BACK
+                </button>
+                <h2 className="font-display text-3xl text-[#FF0055]">WL DIRECTORY</h2>
+              </div>
+
+              {/* stats */}
+              <div className="grid grid-cols-3 border border-white/70 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg shadow-black/10 text-center">
+                {[
+                  { label: 'WHITELISTED', val: applicants.filter(a => a.status === 'approved').length },
+                  { label: 'PENDING',     val: applicants.filter(a => a.status === 'pending').length },
+                  { label: 'TOTAL',       val: applicants.length },
+                ].map(({ label, val }, i) => (
+                  <div key={i} className={`py-4 ${i < 2 ? 'border-r border-white/70' : ''}`}>
+                    <p className="text-[10px] tracking-[0.2em] text-[#6B7280]">{label}</p>
+                    <p className="font-display text-4xl text-[#1E1040]">{val}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* search */}
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3.5 top-3.5 text-black/50" size={20} />
-                  <input 
-                    type="text" 
-                    placeholder="Enter EVM address (0x...) or Twitter handle"
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280] font-mono text-xs">{'>'}</span>
+                  <input
+                    type="text"
+                    placeholder="0x... or twitter handle"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSearchCheck();
-                    }}
-                    className="w-full border-3 border-black rounded-xl py-3 pl-12 pr-4 bg-white text-black outline-none font-jersey text-lg"
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    className={input + ' pl-7'}
                   />
                 </div>
-                <button 
-                  onClick={handleSearchCheck}
-                  className="border-3 border-black bg-black text-white hover:bg-neutral-800 rounded-xl px-6 font-bold cursor-pointer transition-all active:scale-95 shadow-retro shrink-0"
-                >
-                  SEARCH
+                <button onClick={handleSearch} className={btn('acid') + ' px-6'}>
+                  <Search size={14} />
                 </button>
               </div>
 
-              {/* SEARCH RESULTS BOX */}
-              {checkerHasSearched && (
-                <div className="border-3 border-black bg-white rounded-2xl p-4 flex flex-col gap-3 mt-2 shadow-inner">
-                  {checkerSearchResult ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between items-center border-b border-neutral-200 pb-2">
-                        <div>
-                          <span className="font-jersey text-base text-neutral-600">APPLICANT</span>
-                          <h5 className="text-lg leading-none">@{checkerSearchResult.username}</h5>
-                        </div>
-                        
-                        {checkerSearchResult.status === 'approved' && (
-                          <span className="font-jersey font-bold text-sm bg-green-100 text-green-800 px-3 py-1 rounded-xl border border-green-300">WHITELISTED 🎉</span>
-                        )}
-                        {checkerSearchResult.status === 'pending' && (
-                          <span className="font-jersey font-bold text-sm bg-yellow-100 text-yellow-800 px-3 py-1 rounded-xl border border-yellow-300">PENDING REVIEW ⏳</span>
-                        )}
-                        {checkerSearchResult.status === 'rejected' && (
-                          <span className="font-jersey font-bold text-sm bg-red-100 text-red-800 px-3 py-1 rounded-xl border border-red-300">REJECTED ❌</span>
-                        )}
+              {/* result */}
+              {checkerSearched && (
+                <div className="border border-white/70 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg shadow-black/10 p-6 font-mono text-xs flex flex-col gap-3">
+                  {checkerResult ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#6B7280]">APPLICANT</span>
+                        <StatusBadge status={checkerResult.status} />
                       </div>
-
-                      <div className="flex justify-between items-center text-xs mt-1">
-                        <span className="font-jersey text-neutral-500 font-bold">ETH WALLET:</span>
-                        <span className="font-mono text-sm break-all">{checkerSearchResult.wallet}</span>
+                      <div className="flex justify-between">
+                        <span className="text-[#6B7280]">HANDLE</span>
+                        <span className="text-[#1E1040]">@{checkerResult.username}</span>
                       </div>
-
-                      {checkerSearchResult.status === 'approved' && merkleTree && (
-                        <div className="mt-2 border-t border-neutral-100 pt-2 flex flex-col gap-1 text-[11px] font-jersey">
-                          <div className="flex justify-between text-neutral-500">
-                            <span>CRYPTOGRAPHIC MERKLE ROOT:</span>
-                            <span className="font-mono text-black font-bold select-all">{merkleTree.getRoot().substring(0, 10)}...{merkleTree.getRoot().substring(56)}</span>
-                          </div>
-                          <div className="flex justify-between text-neutral-500">
-                            <span>MINT LEAF PROOF GENERATION:</span>
-                            <span className="text-green-700 font-bold">AVAILABLE IN MINT APP</span>
-                          </div>
+                      <div className="flex justify-between gap-4">
+                        <span className="text-[#6B7280] shrink-0">WALLET</span>
+                        <span className="text-[#8B5CF6] break-all text-right">{checkerResult.wallet}</span>
+                      </div>
+                      {checkerResult.status === 'approved' && merkleTree && (
+                        <div className="flex justify-between">
+                          <span className="text-[#6B7280]">MERKLE ROOT</span>
+                          <span className="text-[#6B7280]">{merkleTree.getRoot().slice(0, 10)}…{merkleTree.getRoot().slice(-6)}</span>
                         </div>
                       )}
-                    </div>
+                    </>
                   ) : (
-                    <div className="flex flex-col items-center py-4 text-center text-neutral-500 gap-1.5">
-                      <XCircle size={32} className="text-red-500" />
-                      <h5 className="text-base font-bold text-black">NO APPLICATION FOUND</h5>
-                      <p className="font-jersey text-sm text-neutral-600 max-w-xs">
-                        This address or username was not found in our database. Complete the whitelist application form first.
-                      </p>
+                    <div className="flex items-center gap-3 text-[#6B7280]">
+                      <XCircle size={16} className="text-[#FF0055]" />
+                      <span>NOT FOUND — apply via the whitelist portal</span>
                     </div>
                   )}
                 </div>
               )}
-            </div>
 
-            {/* LIVE WHITE LIST DIRECTORY TABLE */}
-            <div className="border-6 border-black bg-white text-black rounded-3xl shadow-retro overflow-hidden">
-              <div className="bg-neutral-100 border-b-4 border-black p-4 flex justify-between items-center">
-                <span className="text-lg">APPROVED ETH MINT WALLETS ({applicants.filter(a => a.status === 'approved').length})</span>
-                
-                <div className="flex gap-2">
-                  <button onClick={exportToCSV} className="font-jersey border-2 border-black bg-white hover:bg-neutral-100 px-3 py-0.5 rounded-lg text-sm shadow-retro flex items-center gap-1.5">
-                    <Download size={12} /> CSV
-                  </button>
-                  <button onClick={exportToJSON} className="font-jersey border-2 border-black bg-white hover:bg-neutral-100 px-3 py-0.5 rounded-lg text-sm shadow-retro flex items-center gap-1.5">
-                    <Download size={12} /> JSON
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse font-jersey text-lg">
-                  <thead>
-                    <tr className="border-b-3 border-black bg-neutral-50">
-                      <th className="py-2.5 px-4 text-center border-r-2 border-black text-xs" style={{ width: '80px' }}>NO</th>
-                      <th className="py-2.5 px-4 text-left border-r-2 border-black text-xs">ETH MINT WALLET</th>
-                      <th className="py-2.5 px-4 text-center text-xs" style={{ width: '120px' }}>STATUS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {applicants.filter(a => a.status === 'approved').length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="py-8 text-center text-neutral-400 font-bobo text-sm">
-                          No whitelisted wallets found in directory.
-                        </td>
-                      </tr>
-                    ) : (
-                      applicants.filter(a => a.status === 'approved').map((app, index) => (
-                        <tr key={index} className="border-b border-neutral-200 hover:bg-neutral-50 transition-colors">
-                          <td className="py-2 px-4 text-center border-r-2 border-black font-bold font-mono">{index + 1}</td>
-                          <td className="py-2 px-4 font-mono break-all text-sm select-all">{app.wallet}</td>
-                          <td className="py-2 px-4 text-center">
-                            <span className="text-xs bg-green-100 text-green-800 font-bold px-2.5 py-0.5 rounded border border-green-300">WHITELISTED</span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </section>
-        )}
-
-        {/* ADMIN PORTAL PAGE */}
-        {currentPage === 'admin' && isAdminUnlocked && (
-          <section className="max-w-5xl mx-auto flex flex-col gap-8">
-            
-            <div className="flex justify-between items-center">
-              <button 
-                onClick={() => setCurrentPage('hub')}
-                className="border-3 border-black bg-white hover:bg-neutral-100 text-black px-4 py-1.5 rounded-xl text-xs tracking-wider shadow-retro cursor-pointer flex items-center gap-1.5"
-              >
-                <ArrowLeft size={14} /> LEAVE ADMIN
-              </button>
-              
-              <div className="flex items-center gap-2">
-                <span className="border-2 border-black bg-red-400 text-black px-3 py-1 rounded-xl text-xs tracking-wider flex items-center gap-1.5 shadow-retro">
-                  <Shield size={14} /> ADMIN ACTIVE
-                </span>
-              </div>
-            </div>
-
-            {/* DASHBOARD STATS CARD */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="border-4 border-black bg-[#ffd5ec] text-black p-4 rounded-2xl shadow-retro">
-                <span className="font-jersey text-sm text-neutral-600 block leading-tight">TOTAL APPLICATIONS</span>
-                <span className="text-4xl font-jersey leading-none font-bold">{applicants.length}</span>
-              </div>
-              <div className="border-4 border-black bg-[#d4f9d4] text-black p-4 rounded-2xl shadow-retro">
-                <span className="font-jersey text-sm text-neutral-600 block leading-tight text-green-700">APPROVED MINT</span>
-                <span className="text-4xl font-jersey leading-none font-bold text-green-700">{applicants.filter(a => a.status === 'approved').length}</span>
-              </div>
-              <div className="border-4 border-black bg-[#fff4cc] text-black p-4 rounded-2xl shadow-retro">
-                <span className="font-jersey text-sm text-neutral-600 block leading-tight text-yellow-700">PENDING REVIEW</span>
-                <span className="text-4xl font-jersey leading-none font-bold text-yellow-700">{applicants.filter(a => a.status === 'pending').length}</span>
-              </div>
-              <div className="border-4 border-black bg-[#ffd6d6] text-black p-4 rounded-2xl shadow-retro">
-                <span className="font-jersey text-sm text-neutral-600 block leading-tight text-red-700">REJECTED / SPAM</span>
-                <span className="text-4xl font-jersey leading-none font-bold text-red-700">{applicants.filter(a => a.status === 'rejected').length}</span>
-              </div>
-            </div>
-
-            {/* CRYPTOGRAPHIC MERKLE ENGINE TERMINAL */}
-            <div className="border-6 border-black bg-black text-[#77EBFF] rounded-3xl p-6 shadow-retro-lg flex flex-col gap-4 font-jersey">
-              <div className="flex items-center justify-between border-b border-[#77EBFF]/30 pb-3">
-                <span className="text-2xl tracking-wider text-white flex items-center gap-2"><Layers size={22} className="text-[#FF9393]" /> CRYPTOGRAPHIC MERKLE TREE COMPILER</span>
-                <span className="bg-[#77EBFF]/10 text-xs px-2.5 py-0.5 rounded border border-[#77EBFF]/30 font-mono">HASH: SHA-256</span>
-              </div>
-
-              {/* Dynamic Merkle Root */}
-              <div className="bg-neutral-900 border-2 border-neutral-800 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 font-mono text-sm">
-                <div>
-                  <span className="text-[#FF9393] text-xs font-bold font-jersey block mb-1">SOLIDITY CONTRACT MERKLE ROOT:</span>
-                  <span className="text-white text-base select-all">{merkleTree ? merkleTree.getRoot() : '0x' + '0'.repeat(64)}</span>
-                </div>
-                {merkleTree && (
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(merkleTree.getRoot());
-                      triggerAlert('Merkle Root copied to clipboard!');
-                    }}
-                    className="font-jersey border-2 border-[#77EBFF] hover:bg-[#77EBFF]/10 px-4 py-1.5 rounded-xl text-xs text-[#77EBFF] cursor-pointer transition-all shrink-0"
-                  >
-                    COPY MERKLE ROOT
-                  </button>
-                )}
-              </div>
-
-              {/* Merkle Proof Exporter Panel */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                
-                {/* Proof Query */}
-                <div className="flex flex-col gap-3 bg-neutral-950 p-4 rounded-2xl border border-neutral-900">
-                  <span className="text-white text-sm">GENERATE PROOF FOR WHITELISTED ADDRESS:</span>
+              {/* approved wallets table */}
+              <div className="border border-white/70 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg shadow-black/10">
+                <div className="px-4 py-3 border-b border-white/70 flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] text-[#6B7280]">
+                    APPROVED WALLETS ({applicants.filter(a => a.status === 'approved').length})
+                  </span>
                   <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="0x Address"
-                      value={proofAddress}
-                      onChange={(e) => setProofAddress(e.target.value)}
-                      className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono text-xs outline-none"
-                    />
-                    <button 
-                      onClick={handleGenerateProof}
-                      className="bg-[#77EBFF] text-black hover:bg-cyan-400 font-bold px-4 rounded-xl text-xs cursor-pointer transition-all active:scale-95"
-                    >
-                      PROOF ➔
-                    </button>
+                    <button onClick={exportCSV} className={btn('ghost')}>CSV</button>
+                    <button onClick={exportJSON} className={btn('ghost')}>JSON</button>
                   </div>
-
-                  {generatedProof.length > 0 ? (
-                    <div className="flex flex-col gap-1.5 mt-1 font-mono text-xs">
-                      <span className="text-green-400">MEMBER PROOF GENERATED:</span>
-                      <pre className="bg-neutral-900 p-2.5 rounded-lg text-white border border-neutral-800 overflow-x-auto select-all leading-tight">
-                        {JSON.stringify(generatedProof, null, 2)}
-                      </pre>
-                    </div>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {applicants.filter(a => a.status === 'approved').length === 0 ? (
+                    <p className="text-[#6B7280] text-xs text-center py-10">NO WHITELISTED WALLETS YET</p>
                   ) : (
-                    <span className="text-neutral-500 text-xs italic block mt-1">Proof array will compile here for Solidity whitelist minting arguments.</span>
+                    <table className="w-full font-mono text-xs">
+                      <tbody>
+                        {applicants.filter(a => a.status === 'approved').map((a, i) => (
+                          <tr key={i} className="border-b border-[#111] hover:bg-[#0D0D0D]">
+                            <td className="px-4 py-2.5 text-[#6B7280] w-10">{String(i + 1).padStart(2, '0')}</td>
+                            <td className="px-4 py-2.5 text-[#8B5CF6] break-all">{a.wallet}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
                 </div>
+              </div>
 
-                {/* Solidity Snippet */}
-                <div className="flex flex-col gap-2 bg-neutral-950 p-4 rounded-2xl border border-neutral-900 text-xs">
-                  <span className="text-white text-sm font-jersey">SOLIDITY SMART CONTRACT PROOF VERIFICATION:</span>
-                  <pre className="bg-neutral-900 p-2.5 rounded-lg text-[#FF9393] border border-neutral-800 overflow-x-auto select-all leading-tight font-mono whitespace-pre-wrap max-h-[140px] overflow-y-auto">
-{`// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+            </div>
+          )}
 
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+          {/* ── ADMIN ─────────────────────────────────── */}
+          {currentPage === 'admin' && isAdminUnlocked && (
+            <div className="max-w-6xl mx-auto px-6 py-12 flex flex-col gap-10">
 
-contract FuglyMint {
-    bytes32 public merkleRoot = ${merkleTree ? merkleTree.getRoot().substring(0, 14) + '...' : '0xYOUR_MERKLE_ROOT'};
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <button onClick={() => setCurrentPage('hub')} className={btn('ghost')}>
+                    <ArrowLeft size={12} className="inline mr-1" /> EXIT
+                  </button>
+                  <h2 className="font-display text-3xl text-[#1E1040]">ADMIN CONSOLE</h2>
+                </div>
+                <span className="text-[#FF0055] text-[10px] tracking-[0.3em] flex items-center gap-1.5 border border-[#FF0055] px-3 py-1">
+                  <Shield size={10} /> ADMIN ACTIVE
+                </span>
+              </div>
 
-    function mint(bytes32[] calldata proof) external {
-        bytes32 leaf = sha256(abi.encodePacked(msg.sender));
-        require(MerkleProof.verify(proof, merkleRoot, leaf), "Not whitelisted!");
-        // Proceed with whitelist mint...
-    }
+              {/* stats grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: 'TOTAL',    val: applicants.length,                                       color: 'text-[#1E1040]' },
+                  { label: 'APPROVED', val: applicants.filter(a => a.status === 'approved').length,  color: 'text-[#8B5CF6]' },
+                  { label: 'PENDING',  val: applicants.filter(a => a.status === 'pending').length,   color: 'text-yellow-400' },
+                  { label: 'REJECTED', val: applicants.filter(a => a.status === 'rejected').length,  color: 'text-[#FF0055]' },
+                ].map(({ label, val, color }) => (
+                  <div key={label} className="border border-white/70 p-5">
+                    <p className="text-[10px] tracking-[0.25em] text-[#6B7280] mb-1">{label}</p>
+                    <p className={`font-display text-5xl ${color}`}>{val}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Merkle terminal */}
+              <div className="border border-white/70 bg-white">
+                <div className="px-5 py-3 border-b border-white/70 flex items-center gap-2">
+                  <Layers size={12} className="text-[#8B5CF6]" />
+                  <span className="text-[10px] tracking-[0.25em] text-[#6B7280]">MERKLE TREE ENGINE</span>
+                </div>
+                <div className="p-5 flex flex-col gap-4 font-mono text-xs">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[#6B7280] shrink-0">ROOT</span>
+                    <span className="text-[#8B5CF6] break-all flex-1">
+                      {merkleTree ? merkleTree.getRoot() : '0x' + '0'.repeat(64)}
+                    </span>
+                    {merkleTree && (
+                      <button
+                        onClick={() => navigator.clipboard.writeText(merkleTree.getRoot())}
+                        className={btn('ghost') + ' shrink-0'}
+                      >
+                        <Copy size={10} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="0x address to generate proof"
+                      value={proofAddress}
+                      onChange={e => setProofAddress(e.target.value)}
+                      className={input + ' flex-1'}
+                    />
+                    <button onClick={generateProof} className={btn('acid')}>PROOF →</button>
+                  </div>
+                  {generatedProof.length > 0 && (
+                    <pre className="bg-[#060606] border border-[#1A1A1A] p-3 text-[#8B5CF6] text-[10px] overflow-x-auto select-all">
+                      {JSON.stringify(generatedProof, null, 2)}
+                    </pre>
+                  )}
+                  <pre className="text-[#6B7280] text-[10px] leading-relaxed select-all">
+{`// Solidity verification
+bytes32 root = ${merkleTree ? merkleTree.getRoot().slice(0, 14) + '...' : '0xYOUR_ROOT'};
+function mint(bytes32[] calldata proof) external {
+  bytes32 leaf = sha256(abi.encodePacked(msg.sender));
+  require(MerkleProof.verify(proof, root, leaf));
 }`}
                   </pre>
                 </div>
-
-              </div>
-            </div>
-
-            {/* MANUAL WHITELIST & FILE IMPORT ACTIONS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-black">
-              
-              {/* Batch Manual Whitelist */}
-              <div className="border-4 border-black bg-pinkCard p-6 rounded-3xl shadow-retro md:col-span-2 flex flex-col gap-3">
-                <h4 className="text-xl">BATCH MANUAL WHITELISTER</h4>
-                <p className="font-jersey text-sm text-neutral-700 leading-tight">
-                  Directly paste raw EVM wallets (separated by commas or newlines) to immediately grant approved Whitelisted status.
-                </p>
-                <textarea 
-                  rows={4}
-                  placeholder="0x90F8bf3f24C1069f3F24C1069F3F24C1069f3F24&#10;0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
-                  value={manualAddressInput}
-                  onChange={(e) => setManualAddressInput(e.target.value)}
-                  className="w-full border-3 border-black rounded-xl p-3 bg-white text-black outline-none font-mono text-xs shadow-inner"
-                ></textarea>
-                <button 
-                  onClick={handleManualWhitelist}
-                  className="border-3 border-black bg-[#77EBFF] text-black hover:bg-cyan-400 font-bold py-2 rounded-xl text-xs shadow-retro cursor-pointer transition-all active:scale-95"
-                >
-                  BATCH ADD WALLETS TO WHITELIST
-                </button>
               </div>
 
-              {/* Data controls */}
-              <div className="border-4 border-black bg-[#77EBFF] p-6 rounded-3xl shadow-retro flex flex-col gap-4">
-                <h4 className="text-xl">DATABASE CONTROL</h4>
-                
-                <div className="flex flex-col gap-2 font-jersey text-lg">
-                  {/* CSV Export */}
-                  <button 
-                    onClick={exportToCSV}
-                    className="w-full border-3 border-black bg-white hover:bg-neutral-100 py-1.5 rounded-xl shadow-retro flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Download size={16} /> EXPORT TO CSV
+              {/* tools row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 border border-white/70 p-6 flex flex-col gap-4">
+                  <p className="text-[10px] tracking-[0.25em] text-[#6B7280]">BATCH WHITELIST IMPORT</p>
+                  <textarea
+                    rows={4}
+                    placeholder={'0x...\n0x...'}
+                    value={manualAddressInput}
+                    onChange={e => setManualAddressInput(e.target.value)}
+                    className="w-full bg-[#0A0A0A] border border-[#1A1A1A] text-[#8B5CF6] text-xs font-mono p-3 outline-none resize-none focus:border-[#8B5CF6] transition-colors"
+                  />
+                  <button onClick={batchWhitelist} className={btn('acid') + ' w-full py-3'}>
+                    BATCH ADD TO WHITELIST
                   </button>
-
-                  {/* JSON Export */}
-                  <button 
-                    onClick={exportToJSON}
-                    className="w-full border-3 border-black bg-white hover:bg-neutral-100 py-1.5 rounded-xl shadow-retro flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Download size={16} /> EXPORT TO JSON
-                  </button>
-
-                  {/* JSON Import */}
-                  <label className="w-full border-3 border-black bg-white hover:bg-neutral-100 py-1.5 rounded-xl shadow-retro flex items-center justify-center gap-2 cursor-pointer text-center select-none">
-                    <Upload size={16} /> IMPORT FROM JSON
-                    <input 
-                      type="file" 
-                      accept=".json"
-                      onChange={handleImportJSON}
-                      className="hidden"
-                    />
+                </div>
+                <div className="border border-white/70 p-6 flex flex-col gap-3">
+                  <p className="text-[10px] tracking-[0.25em] text-[#6B7280] mb-1">DATABASE OPS</p>
+                  <button onClick={exportCSV} className={btn('ghost') + ' w-full py-2 text-left flex items-center gap-2'}><Download size={10} /> EXPORT CSV</button>
+                  <button onClick={exportJSON} className={btn('ghost') + ' w-full py-2 text-left flex items-center gap-2'}><Download size={10} /> EXPORT JSON</button>
+                  <label className={btn('ghost') + ' w-full py-2 text-left flex items-center gap-2 cursor-pointer'}>
+                    <Upload size={10} /> IMPORT JSON
+                    <input type="file" accept=".json" onChange={importJSON} className="hidden" />
                   </label>
-
-                  {/* Reset DB */}
-                  <button 
-                    onClick={resetLocalDatabase}
-                    className="w-full border-3 border-black bg-red-400 hover:bg-red-500 py-1.5 rounded-xl shadow-retro flex items-center justify-center gap-2 cursor-pointer font-bold text-black mt-2"
-                  >
-                    <Trash2 size={16} /> RESET QUEUE
-                  </button>
                 </div>
               </div>
 
-            </div>
-
-            {/* APPLICANTS ADMINISTRATIVE QUEUE TABLE */}
-            <div className="border-6 border-black bg-white text-black rounded-3xl shadow-retro-lg overflow-hidden">
-              
-              <div className="bg-neutral-100 border-b-4 border-black p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <span className="text-xl">APPLICANTS PORTAL QUEUE ({applicants.length} TOTAL)</span>
-                
-                <div className="flex flex-wrap gap-2 text-xs font-jersey">
-                  <span className="border border-neutral-300 bg-white rounded-lg px-2 py-1">PENDING: {applicants.filter(a => a.status === 'pending').length}</span>
-                  <span className="border border-green-300 bg-green-50 rounded-lg px-2 py-1 text-green-700">APPROVED: {applicants.filter(a => a.status === 'approved').length}</span>
-                  <span className="border border-red-300 bg-red-50 rounded-lg px-2 py-1 text-red-700">REJECTED: {applicants.filter(a => a.status === 'rejected').length}</span>
+              {/* applicant table */}
+              <div className="border border-white/70 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg shadow-black/10">
+                <div className="px-5 py-3 border-b border-white/70 flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.25em] text-[#6B7280]">APPLICATION QUEUE ({applicants.length})</span>
+                  <button onClick={refresh} className={btn('ghost') + ' p-1.5'}><RefreshCw size={10} /></button>
                 </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse font-jersey text-lg">
-                  <thead>
-                    <tr className="border-b-3 border-black bg-neutral-50 text-xs">
-                      <th className="py-3 px-4 text-center border-r-2 border-black" style={{ width: '60px' }}>NO</th>
-                      <th className="py-3 px-4 text-left border-r-2 border-black">TWITTER INFO</th>
-                      <th className="py-3 px-4 text-left border-r-2 border-black">ETH MINT WALLET</th>
-                      <th className="py-3 px-4 text-center border-r-2 border-black" style={{ width: '130px' }}>STATUS</th>
-                      <th className="py-3 px-4 text-center" style={{ width: '190px' }}>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {applicants.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="py-12 text-center text-neutral-400 font-bobo text-sm">
-                          No whitelist applicants found in system queue.
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full font-mono text-xs">
+                    <thead>
+                      <tr className="border-b border-[#1A1A1A] text-[#6B7280]">
+                        <th className="px-4 py-2.5 text-left w-8">#</th>
+                        <th className="px-4 py-2.5 text-left">HANDLE</th>
+                        <th className="px-4 py-2.5 text-left">WALLET</th>
+                        <th className="px-4 py-2.5 text-center w-28">STATUS</th>
+                        <th className="px-4 py-2.5 text-right w-40">ACTIONS</th>
                       </tr>
-                    ) : (
-                      applicants.map((app, index) => (
-                        <tr key={index} className="border-b border-neutral-200 hover:bg-neutral-50 transition-colors">
-                          <td className="py-3 px-4 text-center border-r-2 border-black font-bold font-mono text-sm">{index + 1}</td>
-                          <td className="py-3 px-4 border-r-2 border-black">
-                            <span className="font-bold text-sm block">@{app.username}</span>
-                            <div className="flex gap-2 text-[10px] text-blue-600 font-mono mt-0.5">
-                              {app.qtLink !== 'https://twitter.com/manual' ? (
-                                <>
-                                  <a href={app.qtLink} target="_blank" rel="noreferrer" className="hover:underline flex items-center gap-0.5">QT LINK <ExternalLink size={8} /></a>
-                                  <span>|</span>
-                                  <a href={app.commentLink} target="_blank" rel="noreferrer" className="hover:underline flex items-center gap-0.5">COMMENT <ExternalLink size={8} /></a>
-                                </>
-                              ) : (
-                                <span className="text-neutral-500 font-jersey text-xs">Manual Admin Override Add</span>
+                    </thead>
+                    <tbody>
+                      {applicants.length === 0 ? (
+                        <tr><td colSpan={5} className="text-center py-10 text-[#6B7280]">NO APPLICANTS</td></tr>
+                      ) : applicants.map((a, i) => (
+                        <tr key={i} className="border-b border-[#0F0F0F] hover:bg-[#0D0D0D]">
+                          <td className="px-4 py-3 text-[#6B7280]">{String(i + 1).padStart(2, '0')}</td>
+                          <td className="px-4 py-3">
+                            <span className="text-[#1E1040]">@{a.username}</span>
+                            {a.qtLink && a.qtLink !== 'https://twitter.com/manual' && (
+                              <div className="flex gap-3 mt-0.5">
+                                <a href={a.qtLink} target="_blank" rel="noreferrer" className="text-[#6B7280] hover:text-[#8B5CF6] flex items-center gap-0.5 transition-colors">QT <ExternalLink size={8} /></a>
+                                <a href={a.commentLink} target="_blank" rel="noreferrer" className="text-[#6B7280] hover:text-[#8B5CF6] flex items-center gap-0.5 transition-colors">COMMENT <ExternalLink size={8} /></a>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-[#8B5CF6] break-all max-w-[200px]">{a.wallet}</td>
+                          <td className="px-4 py-3 text-center"><StatusBadge status={a.status} /></td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {a.status !== 'approved' && (
+                                <button onClick={() => adminAction(a.wallet, 'approved')} className="border border-[#8B5CF6]/40 text-[#8B5CF6] text-[10px] px-2 py-1 hover:bg-[#8B5CF6]/10 transition-colors cursor-pointer">✓</button>
                               )}
+                              {a.status !== 'rejected' && (
+                                <button onClick={() => adminAction(a.wallet, 'rejected')} className="border border-yellow-600/40 text-yellow-500 text-[10px] px-2 py-1 hover:bg-yellow-600/10 transition-colors cursor-pointer">✗</button>
+                              )}
+                              <button onClick={() => adminDelete(a.wallet)} className="border border-[#FF0055]/40 text-[#FF0055] text-[10px] px-2 py-1 hover:bg-[#FF0055]/10 transition-colors cursor-pointer">DEL</button>
                             </div>
                           </td>
-                          <td className="py-3 px-4 font-mono text-xs border-r-2 border-black select-all">
-                            {app.wallet}
-                          </td>
-                          <td className="py-3 px-4 text-center border-r-2 border-black">
-                            {app.status === 'approved' && (
-                              <span className="text-xs bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded border border-green-300">APPROVED</span>
-                            )}
-                            {app.status === 'pending' && (
-                              <span className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded border border-yellow-300">PENDING</span>
-                            )}
-                            {app.status === 'rejected' && (
-                              <span className="text-xs bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded border border-red-300">REJECTED</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center flex items-center justify-center gap-1.5 mt-1 border-0">
-                            {app.status !== 'approved' && (
-                              <button 
-                                onClick={() => handleAdminAction(app.wallet, 'approved')}
-                                className="border border-green-600 bg-green-500 hover:bg-green-600 text-white text-xs px-2.5 py-1 rounded font-bold cursor-pointer"
-                              >
-                                APPROVE
-                              </button>
-                            )}
-                            {app.status !== 'rejected' && (
-                              <button 
-                                onClick={() => handleAdminAction(app.wallet, 'rejected')}
-                                className="border border-yellow-600 bg-yellow-500 hover:bg-yellow-600 text-black text-xs px-2.5 py-1 rounded font-bold cursor-pointer"
-                              >
-                                REJECT
-                              </button>
-                            )}
-                            <button 
-                              onClick={() => handleAdminDelete(app.wallet)}
-                              className="border border-red-600 bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1 rounded font-bold cursor-pointer"
-                            >
-                              DELETE
-                            </button>
-                          </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
             </div>
+          )}
 
-          </section>
-        )}
+          {/* footer */}
+          <footer className="border-t border-[#1A1A1A] py-6 px-6 flex justify-between items-center text-[10px] tracking-[0.2em] text-[#6B7280] max-w-6xl mx-auto">
+            <span>© 2026 FUGLYFAM. ETH NFT MINT.</span>
+            <button onClick={() => setPasscodeModalOpen(true)} className="hover:text-[#8B5CF6] transition-colors">
+              ADMIN ACCESS
+            </button>
+          </footer>
 
-      </main>
+          </div>
+        </main>
+      )}
 
-      {/* FOOTER */}
-      <footer className="relative z-10 text-center text-xs font-jersey text-neutral-500 mt-16 pt-6 border-t border-neutral-900 max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center px-4 gap-2">
-        <span>© 2026 FUGLYFAM. ETHEREUM BLOCKCHAIN NFT MINT. ALL RIGHTS RESERVED.</span>
-        <span className="cursor-pointer hover:text-white" onClick={() => setPasscodeModalOpen(true)}>SECRET DEV ACCESS</span>
-      </footer>
-
-      {/* SECRET DEV PASSCODE POPUP */}
+      {/* ── PASSCODE MODAL ────────────────────────────── */}
       {passcodeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm border-6 border-black bg-pinkCard text-black p-6 rounded-3xl shadow-retro-lg flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-black/10 pb-2">
-              <h4 className="text-xl flex items-center gap-1.5"><Lock size={18} /> UNLOCK DEVELOPER CONSOLE</h4>
-              <button 
-                onClick={() => setPasscodeModalOpen(false)}
-                className="font-jersey text-lg font-bold border-0 bg-transparent hover:text-neutral-500 cursor-pointer"
-              >
-                ✕
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm border border-white/70 bg-white p-8 flex flex-col gap-5">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Lock size={14} className="text-[#8B5CF6]" />
+                <span className="font-display text-xl text-white">ADMIN ACCESS</span>
+              </div>
+              <button onClick={() => setPasscodeModalOpen(false)} className="text-[#6B7280] hover:text-white text-lg cursor-pointer">×</button>
             </div>
-
-            <p className="font-jersey text-sm text-neutral-600 leading-tight">
-              Please enter the administrator passcode to access whitelister approvals and the cryptographic Merkle Tree generator. (Default is &quot;bobo&quot; or &quot;fugly&quot;)
+            <p className="text-[#6B7280] text-xs leading-relaxed">
+              Enter the admin passcode to access the whitelist approval queue and Merkle tree generator.
             </p>
-
-            <div className="flex flex-col gap-1">
-              <input 
-                type="password" 
-                placeholder="Enter password..."
-                value={adminPasscode}
-                onChange={(e) => setAdminPasscode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleUnlockAdmin();
-                }}
-                className="border-3 border-black rounded-xl p-3 bg-white text-black outline-none font-mono text-center text-lg"
-              />
-              {adminPasscodeError && (
-                <span className="font-jersey text-xs text-red-600 text-center font-bold">Incorrect administrator passcode! Try &quot;bobo&quot;.</span>
-              )}
-            </div>
-
-            <button 
-              onClick={handleUnlockAdmin}
-              className="border-3 border-black bg-black text-white hover:bg-neutral-800 font-bold py-3 rounded-2xl text-center shadow-retro transition-all cursor-pointer"
-            >
-              UNLOCK ADMINISTRATION
+            <input
+              type="password"
+              placeholder="passcode..."
+              value={adminPasscode}
+              onChange={e => setAdminPasscode(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && unlockAdmin()}
+              className={input + ' text-center text-base'}
+            />
+            {adminPasscodeError && (
+              <p className="text-[#FF0055] text-xs text-center">INCORRECT PASSCODE</p>
+            )}
+            <button onClick={unlockAdmin} className={btn('acid') + ' w-full py-3 text-base'}>
+              UNLOCK →
             </button>
           </div>
         </div>
       )}
 
-      {/* WEB3 SANDBOX WALLET CONNECT DIALOG */}
+      {/* ── WALLET MODAL ──────────────────────────────── */}
       {isWalletModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md border-6 border-black bg-[#ffd5ec] text-black p-6 rounded-3xl shadow-retro-lg flex flex-col gap-4">
-            
-            <div className="flex justify-between items-center border-b border-black/10 pb-2">
-              <h4 className="text-xl flex items-center gap-1.5"><Wallet size={18} /> EVM WALLET SANDBOX</h4>
-              <button 
-                onClick={() => setIsWalletModalOpen(false)}
-                className="font-jersey text-lg font-bold border-0 bg-transparent hover:text-neutral-500 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="font-jersey text-sm text-neutral-600 leading-tight">
-              MetaMask or other EVM wallet providers were not detected. You can easily connect a simulated test address from below, or enter a custom hex address!
-            </p>
-
-            {/* PRE-MADE MOCK WALLETS */}
-            <div className="flex flex-col gap-2 font-jersey text-base">
-              <span className="text-xs font-bold font-bobo tracking-wider">SELECT MOCK DEV ADDRESS:</span>
-              
-              <button 
-                onClick={() => connectSimulatedWallet('0x90F8bf3f24C1069f3F24C1069F3F24C1069f3F24')}
-                className="border-2 border-black bg-white hover:bg-neutral-100 rounded-xl p-2.5 font-mono text-xs flex justify-between items-center cursor-pointer shadow-retro"
-              >
-                <span className="font-jersey text-sm font-bold text-blue-700">Bobo Dev Account (Whitelisted)</span>
-                <span>0x90F8...3F24</span>
-              </button>
-
-              <button 
-                onClick={() => connectSimulatedWallet('0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC')}
-                className="border-2 border-black bg-white hover:bg-neutral-100 rounded-xl p-2.5 font-mono text-xs flex justify-between items-center cursor-pointer shadow-retro"
-              >
-                <span className="font-jersey text-sm font-bold text-yellow-600">Simulated Applicant (Pending)</span>
-                <span>0x3C44...93BC</span>
-              </button>
-
-              <button 
-                onClick={() => connectSimulatedWallet('0x976EA74026E726554dB657fA54763abd0C3a0aa9')}
-                className="border-2 border-black bg-white hover:bg-neutral-100 rounded-xl p-2.5 font-mono text-xs flex justify-between items-center cursor-pointer shadow-retro"
-              >
-                <span className="font-jersey text-sm font-bold text-blue-700">Solidity Enthusiast (Whitelisted)</span>
-                <span>0x976E...0aa9</span>
-              </button>
-
-              <button 
-                onClick={() => connectSimulatedWallet('0xF39Fd6e51aad88F6F4ce6aB8827279cffFb92266')}
-                className="border-2 border-black bg-white hover:bg-neutral-100 rounded-xl p-2.5 font-mono text-xs flex justify-between items-center cursor-pointer shadow-retro"
-              >
-                <span className="font-jersey text-sm font-bold text-neutral-600">Hardhat Node Account 0 (New)</span>
-                <span>0xF39F...2266</span>
-              </button>
-            </div>
-
-            {/* CUSTOM ADDRESS INPUT */}
-            <div className="flex flex-col gap-1.5 border-t border-black/10 pt-3">
-              <label className="text-xs tracking-wider">OR SUBMIT CUSTOM HEX ADDRESS (20-BYTES):</label>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="0x..."
-                  value={customWalletInput}
-                  onChange={(e) => setCustomWalletInput(e.target.value)}
-                  className="flex-1 border-2 border-black rounded-xl px-3 py-2 font-mono text-xs outline-none bg-white text-black"
-                />
-                <button 
-                  onClick={handleCustomWalletConnect}
-                  className="border-2 border-black bg-black text-white hover:bg-neutral-800 rounded-xl px-4 text-xs font-bold cursor-pointer"
-                >
-                  CONNECT
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md border border-white/70 bg-white p-8 flex flex-col gap-5">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Wallet size={14} className="text-[#8B5CF6]" />
+                <span className="font-display text-xl text-white">EVM SANDBOX</span>
               </div>
+              <button onClick={() => setIsWalletModalOpen(false)} className="text-[#6B7280] hover:text-white text-lg cursor-pointer">×</button>
             </div>
-
+            <p className="text-[#6B7280] text-xs leading-relaxed">
+              No wallet detected. Use a simulated address for testing, or connect MetaMask.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {[
+                { label: 'Dev Account (Whitelisted)', addr: '0x90F8bf3f24C1069f3F24C1069F3F24C1069f3F24', color: 'text-[#8B5CF6]' },
+                { label: 'Simulated (Pending)',       addr: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC', color: 'text-yellow-400' },
+                { label: 'Hardhat Node 0 (New)',      addr: '0xF39Fd6e51aad88F6F4ce6aB8827279cffFb92266', color: 'text-[#6B7280]' },
+              ].map(({ label, addr, color }) => (
+                <button
+                  key={addr}
+                  onClick={() => connectSimulated(addr)}
+                  className="border border-white/70 hover:border-[#8B5CF6] bg-[#0A0A0A] px-4 py-3 flex justify-between items-center text-xs transition-colors cursor-pointer"
+                >
+                  <span className={color}>{label}</span>
+                  <span className="text-[#6B7280] font-mono">{addr.slice(0, 6)}…{addr.slice(-4)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 border-t border-[#1A1A1A] pt-4">
+              <input
+                type="text"
+                placeholder="0x custom address"
+                value={customWalletInput}
+                onChange={e => setCustomWalletInput(e.target.value)}
+                className={input + ' flex-1'}
+              />
+              <button onClick={handleCustomConnect} className={btn('acid')}>CONNECT</button>
+            </div>
           </div>
         </div>
       )}

@@ -3,16 +3,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        neon: '#39ff14',
-        boboBlue: '#77EBFF',
-        boboBlueDark: '#00e0ff',
-        boboPink: '#FF9393',
-        pinkCard: '#ffd5ec',
-        rose: '#FFA7A7',
+        cream:  '#F5EDD6',
+        sand:   '#EDE0BC',
+        fblue:  '#3B82F6',
+        fpurple:'#8B5CF6',
+        fteal:  '#06B6D4',
+        fpink:  '#F472B6',
+        fyellow:'#FACC15',
+        fdark:  '#1E1040',
       },
       fontFamily: {
-        bobo: ['"Space Grotesk"', 'sans-serif'],
-        jersey: ['"Pixelify Sans"', 'monospace'],
+        display: ['"Fredoka"', 'sans-serif'],
+        body:    ['"Nunito"',  'sans-serif'],
+        bobo:    ['"Fredoka"', 'sans-serif'],
+        jersey:  ['"Fredoka"', 'sans-serif'],
+        mono:    ['"Nunito"',  'sans-serif'],
       },
       borderWidth: {
         '6': '6px',

@@ -47,13 +47,13 @@ app.get('/api/applicants', async (req, res) => {
 app.post('/api/applicants', async (req, res) => {
   const { username, likeUsername, qtLink, commentLink, wallet } = req.body;
 
-  if (!username || !likeUsername || !qtLink || !commentLink || !wallet) {
+  if (!username || !likeUsername || !qtLink || !wallet) {
     return res.status(400).json({ success: false, message: 'All fields are required' });
   }
 
   const isTwitter = (url) => url.includes('twitter.com') || url.includes('x.com');
-  if (!isTwitter(qtLink) || !isTwitter(commentLink)) {
-    return res.status(400).json({ success: false, message: 'QT and comment links must be Twitter/X URLs' });
+  if (!isTwitter(qtLink)) {
+    return res.status(400).json({ success: false, message: 'QT link must be a Twitter/X URL' });
   }
 
   if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
