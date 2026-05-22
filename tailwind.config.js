@@ -11,8 +11,8 @@ module.exports = {
         rose: '#FFA7A7',
       },
       fontFamily: {
-        bobo: ['"Bagel Fat One"', 'cursive'],
-        jersey: ['"Jersey 25"', 'sans-serif'],
+        bobo: ['"Space Grotesk"', 'sans-serif'],
+        jersey: ['"Pixelify Sans"', 'monospace'],
       },
       borderWidth: {
         '6': '6px',

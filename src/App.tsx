@@ -333,14 +333,11 @@ export default function App() {
       {/* HEADER SECTION */}
       <header className="relative z-10 border-b-6 border-black bg-pinkCard p-4 text-black flex items-center justify-between shadow-retro">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentPage('explore')}>
-          <img 
-            src="/logo-with-bg-white.png" 
-            alt="Fugly Logo" 
-            className="w-12 h-12 rounded-xl border-3 border-black shadow-retro" 
-            onError={(e) => {
-              // Fallback if logo not found
-              (e.target as HTMLElement).style.display = 'none';
-            }}
+          <img
+            src="/artwork/FUGLY.gif"
+            alt="Fugly Logo"
+            className="w-12 h-12 rounded-xl border-3 border-black shadow-retro"
+            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
           />
           <div>
             <h1 className="text-2xl tracking-wider leading-none glow-pink">FUGLY FAM</h1>
@@ -399,16 +396,22 @@ export default function App() {
           <section className="flex flex-col items-center justify-center min-h-[80vh] relative rounded-3xl border-8 border-black overflow-hidden shadow-retro-lg bg-black">
             {/* Full-bleed banner artwork */}
             <img
-              src="/banner.png"
+              src="/artwork/BANNER-1.png"
               alt="FUGLY FAM Banner"
               className="absolute inset-0 w-full h-full object-cover object-center"
+            />
+            {/* Stars overlay for texture */}
+            <img
+              src="/artwork/stars.gif"
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-screen pointer-events-none"
             />
             {/* Subtle bottom gradient so text remains readable */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
 
             <div className="relative z-10 flex flex-col items-center max-w-2xl px-6 text-center gap-6 pb-12 pt-8">
               <img
-                src="/logo-with-bg-white.png"
+                src="/artwork/FUGLY.gif"
                 alt="Fuglyfam"
                 className="w-28 h-28 rounded-full border-6 border-black shadow-retro-lg drop-shadow-2xl"
               />
@@ -439,7 +442,7 @@ export default function App() {
             <div className="rounded-3xl border-6 border-black bg-pinkCard p-6 md:p-8 text-black shadow-retro relative overflow-hidden flex flex-col md:flex-row items-center gap-6">
               <div
                 className="absolute inset-0 opacity-30 bg-center bg-cover z-0 pointer-events-none"
-                style={{ backgroundImage: `url('/banner.png')` }}
+                style={{ backgroundImage: `url('/artwork/BANNER-1.png')` }}
               ></div>
 
               <div className="relative z-10 flex-1 flex flex-col gap-2">
@@ -480,7 +483,7 @@ export default function App() {
               </div>
 
               <img 
-                src="/logo-with-bg-white.png" 
+                src="/artwork/FUGLYlabs.jpg" 
                 alt="Fugly logo" 
                 className="w-24 h-24 rounded-2xl border-4 border-black shadow-retro relative z-10"
               />
