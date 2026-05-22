@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-black text-white h-full selection:bg-[#77EBFF] selection:text-black">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FUGLY FAM — ETH WHITELIST PORTAL</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Jersey+25&display=swap" rel="stylesheet" />
+    
+    <style>
+      /* Smooth Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #000;
+        border-left: 2px solid #222;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #FF9393;
+        border: 2px solid #000;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #77EBFF;
+      }
+      
+      /* Global reset to custom font */
+      body, button, input, select, textarea {
+        font-family: 'Bagel Fat One', cursive;
+        letter-spacing: 0.05em;
+      }
+      
+      .font-jersey {
+        font-family: 'Jersey 25', sans-serif !important;
+      }
+      
+      /* Neon Glow utilities */
+      .glow-pink {
+        text-shadow: 0 0 10px #FFA7A7, 0 0 30px #FFA7A7;
+      }
+      .glow-cyan {
+        text-shadow: 0 0 10px #77EBFF, 0 0 30px #77EBFF;
+      }
+      .glow-neon {
+        text-shadow: 0 0 10px #39ff14, 0 0 20px #39ff14;
+      }
+    </style>
+  </head>
+  <body class="h-full m-0 overflow-x-hidden">
+    <div id="root" class="h-full"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
