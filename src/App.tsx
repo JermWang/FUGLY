@@ -409,8 +409,7 @@ export default function App() {
         <main className="pt-14 relative min-h-screen">
           {/* artwork background */}
           <div className="fixed inset-0 z-0 pointer-events-none">
-            <img src="/artwork/BANNER-2.png" alt="" className="w-full h-full object-cover object-center opacity-50"/>
-            <div className="absolute inset-0" style={{ background: 'rgba(255,255,255,0.55)' }}/>
+            <img src="/artwork/banner 3.jpg" alt="" className="w-full h-full object-cover object-center"/>
           </div>
           <div className="relative z-10">
 
