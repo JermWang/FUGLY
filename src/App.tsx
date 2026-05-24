@@ -15,7 +15,17 @@ interface Applicant {
   commentLink: string;
   wallet: string;
   status: 'pending' | 'approved' | 'rejected';
+  qtVerified: boolean;
   appliedAt: string;
+}
+
+interface TweetPreview {
+  author: string;
+  text: string;
+  isQT: boolean;
+  quotedAuthor: string | null;
+  url: string;
+  createdAt: string;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -86,6 +96,20 @@ export default function App() {
   const [generatedProof, setGeneratedProof] = useState<string[]>([]);
   const [manualAddressInput, setManualAddressInput] = useState('');
   const [passcodeModalOpen, setPasscodeModalOpen] = useState(false);
+  const [tweetPreviews, setTweetPreviews] = useState<Record<string, TweetPreview | 'loading' | 'error'>>({});
+
+  const fetchTweetPreview = async (qtLink: string) => {
+    if (!qtLink || tweetPreviews[qtLink]) return;
+    setTweetPreviews(p => ({ ...p, [qtLink]: 'loading' }));
+    try {
+      const res = await fetch(`${API}/tweet-preview?url=${encodeURIComponent(qtLink)}`);
+      const data = await res.json();
+      if (data.error) { setTweetPreviews(p => ({ ...p, [qtLink]: 'error' })); return; }
+      setTweetPreviews(p => ({ ...p, [qtLink]: data as TweetPreview }));
+    } catch {
+      setTweetPreviews(p => ({ ...p, [qtLink]: 'error' }));
+    }
+  };
 
   // ── Data ───────────────────────────────────────────────
   const fetchApplicants = async () => {
@@ -542,7 +566,7 @@ export default function App() {
                     {
                       num: '03',
                       label: 'QUOTE TWEET',
-                      sub: 'QT pinned post with "fuglys are coming"',
+                      sub: 'QT the pinned post — say anything',
                       input: <input type="text" placeholder="x.com/…/status/…" value={formQtLink} onChange={e => setFormQtLink(e.target.value)} className={input + ' w-44 shrink-0'} />,
                     },
                     {
@@ -798,26 +822,49 @@ function mint(bytes32[] calldata proof) external {
                         <th className="px-4 py-2.5 text-left w-8">#</th>
                         <th className="px-4 py-2.5 text-left">HANDLE</th>
                         <th className="px-4 py-2.5 text-left">WALLET</th>
+                        <th className="px-4 py-2.5 text-center w-16">QT</th>
                         <th className="px-4 py-2.5 text-center w-28">STATUS</th>
                         <th className="px-4 py-2.5 text-right w-40">ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
                       {applicants.length === 0 ? (
-                        <tr><td colSpan={5} className="text-center py-10 text-[#6B7280]">NO APPLICANTS</td></tr>
-                      ) : applicants.map((a, i) => (
-                        <tr key={i} className="border-b border-[#0F0F0F] hover:bg-[#0D0D0D]">
+                        <tr><td colSpan={6} className="text-center py-10 text-[#6B7280]">NO APPLICANTS</td></tr>
+                      ) : applicants.map((a, i) => {
+                        const preview = a.qtLink ? tweetPreviews[a.qtLink] : undefined;
+                        return (
+                        <React.Fragment key={i}>
+                        <tr className="border-b border-[#0F0F0F] hover:bg-[#0D0D0D]">
                           <td className="px-4 py-3 text-[#6B7280]">{String(i + 1).padStart(2, '0')}</td>
                           <td className="px-4 py-3">
-                            <span className="text-[#1E1040]">@{a.username}</span>
-                            {a.qtLink && a.qtLink !== 'https://twitter.com/manual' && (
-                              <div className="flex gap-3 mt-0.5">
-                                <a href={a.qtLink} target="_blank" rel="noreferrer" className="text-[#6B7280] hover:text-[#8B5CF6] flex items-center gap-0.5 transition-colors">QT <ExternalLink size={8} /></a>
-                                <a href={a.commentLink} target="_blank" rel="noreferrer" className="text-[#6B7280] hover:text-[#8B5CF6] flex items-center gap-0.5 transition-colors">COMMENT <ExternalLink size={8} /></a>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <a href={`https://x.com/${a.username}`} target="_blank" rel="noreferrer" className="text-[#1E1040] hover:text-[#8B5CF6] flex items-center gap-0.5 transition-colors">
+                                @{a.username} <ExternalLink size={8} />
+                              </a>
+                            </div>
+                            {a.likeUsername && (
+                              <div className="text-[#6B7280] text-[10px] mt-0.5">liked as @{a.likeUsername}</div>
                             )}
                           </td>
                           <td className="px-4 py-3 text-[#8B5CF6] break-all max-w-[200px]">{a.wallet}</td>
+                          {/* QT verification column */}
+                          <td className="px-4 py-3 text-center">
+                            {a.qtLink && a.qtLink !== 'https://twitter.com/manual' ? (
+                              <button
+                                onClick={() => fetchTweetPreview(a.qtLink)}
+                                title="Preview QT"
+                                className={`text-[10px] px-1.5 py-0.5 border transition-colors cursor-pointer ${
+                                  a.qtVerified
+                                    ? 'border-[#8B5CF6]/60 text-[#8B5CF6]'
+                                    : 'border-yellow-600/50 text-yellow-400'
+                                }`}
+                              >
+                                {a.qtVerified ? '✓ VER' : '? VIEW'}
+                              </button>
+                            ) : (
+                              <span className="text-[#6B7280] text-[10px]">—</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-center"><StatusBadge status={a.status} /></td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -831,7 +878,43 @@ function mint(bytes32[] calldata proof) external {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        {/* Inline tweet preview card */}
+                        {preview && preview !== 'loading' && preview !== 'error' && (
+                          <tr className="border-b border-[#0A0A0A] bg-[#060606]">
+                            <td colSpan={6} className="px-8 py-3">
+                              <div className="border border-[#1A1A1A] p-3 font-mono text-[11px] flex flex-col gap-1.5 max-w-xl">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <span className="text-[#6B7280]">@{preview.author}</span>
+                                  <span className={`px-1.5 py-0.5 text-[9px] border ${preview.isQT ? 'border-[#8B5CF6]/50 text-[#8B5CF6]' : 'border-[#FF0055]/50 text-[#FF0055]'}`}>
+                                    {preview.isQT ? 'IS QT ✓' : 'NOT A QT ✗'}
+                                  </span>
+                                  {preview.quotedAuthor && (
+                                    <span className={`px-1.5 py-0.5 text-[9px] border ${preview.quotedAuthor.toLowerCase() === 'fuglyeth' ? 'border-[#8B5CF6]/50 text-[#8B5CF6]' : 'border-yellow-600/50 text-yellow-400'}`}>
+                                      QT'd @{preview.quotedAuthor} {preview.quotedAuthor.toLowerCase() === 'fuglyeth' ? '✓' : '⚠'}
+                                    </span>
+                                  )}
+                                  <a href={preview.url} target="_blank" rel="noreferrer" className="ml-auto text-[#6B7280] hover:text-[#8B5CF6] flex items-center gap-0.5">
+                                    VIEW <ExternalLink size={8} />
+                                  </a>
+                                </div>
+                                <p className="text-white/80 leading-relaxed">{preview.text}</p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {preview === 'loading' && (
+                          <tr className="border-b border-[#0A0A0A] bg-[#060606]">
+                            <td colSpan={6} className="px-8 py-2 text-[#6B7280] text-[10px]">fetching tweet…</td>
+                          </tr>
+                        )}
+                        {preview === 'error' && (
+                          <tr className="border-b border-[#0A0A0A] bg-[#060606]">
+                            <td colSpan={6} className="px-8 py-2 text-[#FF0055] text-[10px]">⚠ could not fetch tweet — open link manually</td>
+                          </tr>
+                        )}
+                        </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
